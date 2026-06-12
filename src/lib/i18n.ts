@@ -189,5 +189,5 @@ export const useLangStore = create<LangState>()(
 
 export function useT(): Dict {
   const lang = useLangStore((s) => s.lang);
-  return dict[lang];
+  return dict[lang] as Dict;
 }
