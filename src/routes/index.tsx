@@ -64,8 +64,6 @@ function FunnelsDashboard({ onLogout, userEmail }: { onLogout: () => void; userE
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [localOpenai, setLocalOpenai] = useState("");
   const [localAnthropic, setLocalAnthropic] = useState("");
-  const [localDbUrl, setLocalDbUrl] = useState("");
-  const [localDbKey, setLocalDbKey] = useState("");
   const [dbTestState, setDbTestState] = useState<"idle" | "testing" | "success" | "error">("idle");
   const [schemaSetupState, setSchemaSetupState] = useState<"idle" | "setting_up" | "success" | "error">("idle");
 
@@ -134,8 +132,6 @@ function FunnelsDashboard({ onLogout, userEmail }: { onLogout: () => void; userE
             onClick={() => {
               setLocalOpenai(apiKeys.openai || "");
               setLocalAnthropic(apiKeys.anthropic || "");
-              setLocalDbUrl(supabaseConfig.url || "");
-              setLocalDbKey(supabaseConfig.anonKey || "");
               setDbTestState("idle");
               setSchemaSetupState("idle");
               setSettingsOpen(true);
@@ -298,49 +294,37 @@ function FunnelsDashboard({ onLogout, userEmail }: { onLogout: () => void; userE
               <div className="space-y-4">
                 <div className="flex items-center gap-2 border-b border-zinc-800 pb-2">
                   <Database className="h-4 w-4 text-violet-400" />
-                  <h3 className="font-semibold text-zinc-200">Integração do Supabase</h3>
+                  <h3 className="font-semibold text-zinc-200">Banco de Dados (Supabase)</h3>
                 </div>
 
-                <div className="space-y-1.5">
-                  <label className="text-xs text-zinc-400 font-medium">Supabase URL</label>
-                  <input
-                    type="text"
-                    placeholder="https://xxxx.supabase.co"
-                    value={localDbUrl}
-                    onChange={(e) => setLocalDbUrl(e.target.value)}
-                    className="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-zinc-100 text-xs font-mono focus:border-violet-500 focus:outline-none transition"
-                  />
-                </div>
-
-                <div className="space-y-1.5">
-                  <label className="text-xs text-zinc-400 font-medium">Supabase Anon Key</label>
-                  <input
-                    type="password"
-                    placeholder="eyJhbGciOi..."
-                    value={localDbKey}
-                    onChange={(e) => setLocalDbKey(e.target.value)}
-                    className="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-zinc-100 text-xs font-mono focus:border-violet-500 focus:outline-none transition"
-                  />
+                <div className="rounded-lg border border-emerald-500/20 bg-emerald-500/5 p-3 flex items-start gap-2.5">
+                  <Check className="h-4 w-4 text-emerald-500 shrink-0 mt-0.5" />
+                  <div className="space-y-1">
+                    <p className="text-xs font-semibold text-emerald-400">Supabase Conectado Automaticamente</p>
+                    <p className="text-[10px] text-zinc-400 leading-relaxed">
+                      Sua conta do Supabase está vinculada à Lovable por meio das chaves nativas do sistema. Não é necessário preenchimento manual.
+                    </p>
+                  </div>
                 </div>
 
                 {/* DB actions & validation */}
-                <div className="flex flex-wrap gap-2 pt-2">
+                <div className="flex flex-wrap gap-2 pt-1">
                   <Button
                     onClick={async () => {
                       setDbTestState("testing");
-                      const ok = await testSupabaseConnection(localDbUrl, localDbKey);
+                      const ok = await testSupabaseConnection();
                       if (ok) {
                         setDbTestState("success");
                         toast.success("Conexão com o Supabase efetuada com sucesso!");
                       } else {
                         setDbTestState("error");
-                        toast.error("Falha ao se conectar com o Supabase. Verifique os dados.");
+                        toast.error("Falha ao se conectar com as chaves injetadas do Supabase. Verifique sua integração Lovable.");
                       }
                     }}
-                    disabled={dbTestState === "testing" || !localDbUrl || !localDbKey}
+                    disabled={dbTestState === "testing"}
                     variant="outline"
                     size="sm"
-                    className="text-xs border-zinc-700 bg-zinc-950 hover:bg-zinc-800 text-zinc-300 flex items-center gap-1.5"
+                    className="text-xs border-zinc-700 bg-zinc-950 hover:bg-zinc-800 flex items-center gap-1.5"
                   >
                     {dbTestState === "testing" ? (
                       <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -356,23 +340,21 @@ function FunnelsDashboard({ onLogout, userEmail }: { onLogout: () => void; userE
                     onClick={async () => {
                       setSchemaSetupState("setting_up");
                       try {
-                        await ensureSchema(localDbUrl, localDbKey);
+                        await ensureSchema();
                         setSchemaSetupState("success");
-                        toast.success("Tabelas 'funnels' e 'leads' criadas no Supabase!");
+                        toast.success("Tabelas 'funnels' e 'leads' configuradas no Supabase!");
                       } catch {
                         setSchemaSetupState("error");
-                        toast.error("Erro ao criar tabelas. Certifique-se de habilitar a RPC.");
+                        toast.error("Erro ao criar tabelas. Verifique a integração.");
                       }
                     }}
                     disabled={
                       schemaSetupState === "setting_up" ||
-                      !localDbUrl ||
-                      !localDbKey ||
                       dbTestState !== "success"
                     }
                     variant="outline"
                     size="sm"
-                    className="text-xs border-zinc-700 bg-zinc-950 hover:bg-zinc-800 text-zinc-300 flex items-center gap-1.5"
+                    className="text-xs border-zinc-700 bg-zinc-950 hover:bg-zinc-800 flex items-center gap-1.5"
                   >
                     {schemaSetupState === "setting_up" ? (
                       <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -410,7 +392,6 @@ function FunnelsDashboard({ onLogout, userEmail }: { onLogout: () => void; userE
                 className="bg-violet-600 hover:bg-violet-700 text-white font-semibold"
                 onClick={() => {
                   setApiKeys({ openai: localOpenai.trim(), anthropic: localAnthropic.trim() });
-                  setSupabaseConfig({ url: localDbUrl.trim(), anonKey: localDbKey.trim() });
                   toast.success("Configurações atualizadas!");
                   setSettingsOpen(false);
                 }}
