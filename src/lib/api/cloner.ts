@@ -29,9 +29,9 @@ interface ScrapedStep {
     allText: string;
     title: string;
     subtitle: string;
-    options: Array<{ text: string; hasImage: boolean; imageUrl: string }>;
+    options: Array<{ text: string; hasImage: boolean; imageUrl: string; href?: string }>;
     inputs: Array<{ type: string; placeholder: string; name: string }>;
-    buttons: string[];
+    buttons: Array<string | { text: string; href?: string }>;
     images: Array<{ src: string; alt: string }>;
     pageType: "intro" | "options" | "capture" | "loading" | "offer" | "result" | "unknown";
     primaryColor: string;
@@ -96,9 +96,9 @@ async function analyzeStepWithVision(
 Return a JSON array of components. Each component is one of these types:
 - { "type": "text", "text": "..." }
 - { "type": "image", "imageUrl": "url or empty", "alt": "..." }
-- { "type": "options", "title": "...", "subtitle": "...", "columns": 1 or 2, "options": [{ "id": "rand8", "label": "...", "image": "imageUrl or empty" }] }
+- { "type": "options", "title": "...", "subtitle": "...", "columns": 1 or 2, "options": [{ "id": "rand8", "label": "...", "image": "imageUrl or empty", "href": "checkout/link if this option button redirects" }] }
 - { "type": "capture", "title": "...", "fields": [{ "id": "rand8", "type": "text|email|tel", "label": "...", "required": true }], "buttonText": "..." }
-- { "type": "button", "buttonText": "..." }
+- { "type": "button", "buttonText": "...", "href": "external link only when the CTA button redirects" }
 - { "type": "loading", "text": "...", "loadingDuration": 3 }
 - { "type": "price", "title": "...", "price": "R$ XX", "pricePeriod": "/único", "priceFeatures": ["..."], "buttonText": "..." }
 - { "type": "plans", "title": "...", "plans": [{ "id": "rand8", "name": "...", "originalPrice": "R$ XX", "promoPrice": "R$ XX", "period": "/mês", "popular": false }] }
@@ -109,6 +109,8 @@ Return a JSON array of components. Each component is one of these types:
 RULES:
 - Extract ALL text VERBATIM from the image (Brazilian Portuguese)
 - For options: list EVERY visible option label
+- Preserve image URLs that are inside option buttons/cards. Put those URLs in option.image, never in a separate linked image component.
+- If a visible CTA/option redirects to a page/checkout, put the URL in button.href or option.href. Do NOT attach links to image components.
 - For capture forms: list ALL visible fields
 - For prices: extract EXACT price values
 - Generate 8-char random alphanumeric ids for id fields
@@ -124,6 +126,8 @@ Context: ${funnelContext}
 Page type detected: ${knownContent.pageType}
 Known title: "${knownContent.title}"
 Known options count: ${knownContent.options.length}
+Known options with images/links: ${JSON.stringify(knownContent.options).slice(0, 1200)}
+Known buttons/links: ${JSON.stringify(knownContent.buttons).slice(0, 800)}
 Known text: "${knownContent.allText.slice(0, 800)}"
 
 Extract ALL components you see in this screenshot. Be extremely accurate and verbose.`,
