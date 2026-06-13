@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import type { ComponentData, OptionItem, CaptureField } from "@/lib/types";
-import { Trash2, Sparkles, Loader2, Link2, ExternalLink } from "lucide-react";
+import { Trash2, Sparkles, Loader2, Upload, X } from "lucide-react";
 import { generateImage } from "@/lib/api/cloner";
 import { toast } from "sonner";
 
@@ -94,6 +94,48 @@ function AIImageGenerator({
         </div>
       )}
     </div>
+  );
+}
+
+function ImageUploader({ onImageUploaded }: { onImageUploaded: (url: string) => void }) {
+  const [uploading, setUploading] = useState(false);
+
+  const handleUpload = (file?: File) => {
+    if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      toast.error("Selecione um arquivo de imagem válido.");
+      return;
+    }
+    if (file.size > 4 * 1024 * 1024) {
+      toast.error("A imagem precisa ter até 4MB para ficar salva no funil.");
+      return;
+    }
+
+    setUploading(true);
+    const reader = new FileReader();
+    reader.onload = () => {
+      onImageUploaded(String(reader.result));
+      toast.success("Imagem enviada com sucesso!");
+      setUploading(false);
+    };
+    reader.onerror = () => {
+      toast.error("Não foi possível enviar a imagem.");
+      setUploading(false);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  return (
+    <label className="flex h-9 w-full cursor-pointer items-center justify-center gap-2 rounded-md border border-dashed border-zinc-700 bg-zinc-900/40 text-xs font-medium text-zinc-200 transition hover:bg-zinc-800/70">
+      {uploading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />}
+      {uploading ? "Enviando..." : "Subir imagem do computador"}
+      <input
+        type="file"
+        accept="image/*"
+        className="sr-only"
+        onChange={(event) => handleUpload(event.target.files?.[0])}
+      />
+    </label>
   );
 }
 
