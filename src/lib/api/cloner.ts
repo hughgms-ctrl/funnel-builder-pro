@@ -212,11 +212,12 @@ async function analyzeStepWithClaude(
 Page type: ${knownContent.pageType}. Known title: "${knownContent.title}". Options found: ${knownContent.options.length}.
 
 Return a JSON array of components. Types: text, image, options, capture, button, loading, price, plans, testimonials, timer, alert.
-- options: { type:"options", title, subtitle, columns(1-2), options:[{id,label,image}] }
+- options: { type:"options", title, subtitle, columns(1-2), options:[{id,label,image,href}] }
 - capture: { type:"capture", title, fields:[{id,type,label,required}], buttonText }
-- price: { type:"price", title, price, pricePeriod, priceFeatures:[], buttonText }
+- button: { type:"button", buttonText, href } where href is only for CTA redirects
+- price: { type:"price", title, price, pricePeriod, priceFeatures:[], buttonText, href }
 - plans: { type:"plans", title, plans:[{id,name,originalPrice,promoPrice,period,popular}] }
-Use 8-char random alphanumeric ids. Extract ALL text VERBATIM in Brazilian Portuguese. Return ONLY valid JSON array.`,
+Use 8-char random alphanumeric ids. Extract ALL text VERBATIM in Brazilian Portuguese. Preserve option button images in option.image, and put redirect URLs on buttons/options, never on image components. Return ONLY valid JSON array.`,
             },
           ],
         },
@@ -259,6 +260,53 @@ function inferStepTitle(step: ScrapedStep, index: number): string {
     case "result": return "Seu Resultado";
     default: return `Etapa ${index + 1}`;
   }
+}
+
+function getButtonText(button: string | { text: string; href?: string }): string {
+  return typeof button === "string" ? button : button.text;
+}
+
+function getButtonHref(button: string | { text: string; href?: string }): string | undefined {
+  return typeof button === "string" ? undefined : button.href;
+}
+
+function normalizeScrapedComponents(components: ComponentData[], step: ScrapedStep): ComponentData[] {
+  const firstHref = step.content.buttons.map(getButtonHref).find(Boolean);
+  let buttonIndex = 0;
+
+  return components.map((component) => {
+    if (component.type === "image") {
+      return { ...component, href: undefined, nextStepId: component.nextStepId };
+    }
+
+    if (component.type === "button" || component.type === "price") {
+      const button = step.content.buttons[buttonIndex++];
+      return {
+        ...component,
+        buttonText: component.buttonText || getButtonText(button || "") || "Continuar",
+        href: component.href || getButtonHref(button) || firstHref,
+        openInNewTab: component.openInNewTab ?? false,
+      };
+    }
+
+    if (component.type === "options") {
+      const options = (component.options || []).map((option) => {
+        const scraped = step.content.options.find((item) => item.text === option.label)
+          || step.content.options.find((item) => item.text.includes(option.label) || option.label.includes(item.text));
+
+        return {
+          ...option,
+          image: option.image || scraped?.imageUrl || undefined,
+          href: option.href || scraped?.href || undefined,
+          openInNewTab: option.openInNewTab ?? false,
+        };
+      });
+
+      return { ...component, options };
+    }
+
+    return component;
+  });
 }
 
 // ─── Generate DALL-E image ────────────────────────────────────────────────────
