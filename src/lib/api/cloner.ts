@@ -1,4 +1,6 @@
 import type { Funnel, Step, ComponentData } from "@/lib/types";
+import { createServerFn } from "@tanstack/react-start";
+import { z } from "zod";
 
 const uid = () => Math.random().toString(36).slice(2, 10);
 
@@ -20,14 +22,69 @@ export interface CloneProgress {
 
 export type ProgressCallback = (p: CloneProgress) => void;
 
-// ─── Fetch page content via a CORS-compatible proxy ───────────────────────────
+// Server function running server-side without CORS limits and with standard desktop headers
+export const fetchPageContentServer = createServerFn({ method: "POST" })
+  .validator(z.object({ url: z.string().url() }))
+  .handler(async ({ data }) => {
+    const { url } = data;
+    try {
+      const res = await fetch(url, {
+        headers: {
+          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+          "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
+          "Accept-Language": "pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7",
+          "Cache-Control": "no-cache"
+        }
+      });
+      if (!res.ok) {
+        throw new Error(`Remoto retornou status ${res.status}`);
+      }
+      const html = await res.text();
+      return { html };
+    } catch (err: any) {
+      throw new Error(`Erro ao buscar página no servidor: ${err.message || err}`);
+    }
+  });
+
+// ─── Fetch page content via server function or CORS proxy ─────────────────────
 async function fetchPageContent(url: string): Promise<{ html: string; baseUrl: string }> {
-  // Use allorigins.win as a CORS proxy
-  const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`;
-  const res = await fetch(proxyUrl);
-  if (!res.ok) throw new Error(`Falha ao acessar URL: ${res.status}`);
-  const json = await res.json();
-  return { html: json.contents as string, baseUrl: url };
+  // 1. Try server function (runs server-side with User-Agent)
+  try {
+    const result = await fetchPageContentServer({ data: { url } });
+    if (result && result.html) {
+      return { html: result.html, baseUrl: url };
+    }
+  } catch (err) {
+    console.warn("Server-side fetch failed, trying CORS proxies...", err);
+  }
+
+  // 2. Try client-side CORS proxies fallback
+  const proxies = [
+    (u: string) => `https://corsproxy.io/?${encodeURIComponent(u)}`,
+    (u: string) => `https://api.allorigins.win/get?url=${encodeURIComponent(u)}`
+  ];
+
+  for (const getProxyUrl of proxies) {
+    try {
+      const proxyUrl = getProxyUrl(url);
+      const res = await fetch(proxyUrl);
+      if (!res.ok) continue;
+
+      if (proxyUrl.includes("allorigins.win")) {
+        const json = await res.json();
+        if (json.contents) {
+          return { html: json.contents as string, baseUrl: url };
+        }
+      } else {
+        const html = await res.text();
+        if (html) {
+          return { html, baseUrl: url };
+        }
+      }
+    } catch {}
+  }
+
+  throw new Error("Não foi possível acessar o site. O servidor original bloqueou todas as conexões.");
 }
 
 // ─── Extract readable text & structure from HTML ──────────────────────────────
@@ -291,21 +348,56 @@ export async function cloneFunnel(
 ): Promise<Funnel> {
   // Stage 1: Fetch
   onProgress({ stage: "fetching", message: "Acessando URL do funil...", percent: 10 });
-  const { html, baseUrl } = await fetchPageContent(url);
-  const pageData = extractPageData(html, baseUrl);
+  
+  let html = "";
+  let baseUrl = url;
+  let pageData: ReturnType<typeof extractPageData>;
+  let allPagesText = "";
 
-  // Try to fetch linked subpages (funnel steps)
-  onProgress({ stage: "fetching", message: "Explorando páginas do funil...", percent: 20 });
-  let allPagesText = `=== PÁGINA PRINCIPAL: ${pageData.title} ===\n${pageData.bodyText}\n\n`;
+  try {
+    const fetched = await fetchPageContent(url);
+    html = fetched.html;
+    baseUrl = fetched.baseUrl;
+    pageData = extractPageData(html, baseUrl);
 
-  for (const link of pageData.links.slice(0, 3)) {
-    try {
-      const sub = await fetchPageContent(link);
-      const subData = extractPageData(sub.html, link);
-      allPagesText += `=== PÁGINA: ${subData.title} ===\n${subData.bodyText}\n\n`;
-    } catch {
-      // Skip failed subpages
+    // Try to fetch linked subpages (funnel steps)
+    onProgress({ stage: "fetching", message: "Explorando páginas do funil...", percent: 20 });
+    allPagesText = `=== PÁGINA PRINCIPAL: ${pageData.title} ===\n${pageData.bodyText}\n\n`;
+
+    for (const link of pageData.links.slice(0, 3)) {
+      try {
+        const sub = await fetchPageContent(link);
+        const subData = extractPageData(sub.html, link);
+        allPagesText += `=== PÁGINA: ${subData.title} ===\n${subData.bodyText}\n\n`;
+      } catch {
+        // Skip failed subpages
+      }
     }
+  } catch (err) {
+    onProgress({ stage: "fetching", message: "Acesso bloqueado pelo site original. Iniciando Geração Inteligente por IA...", percent: 20 });
+    
+    // Fallback theme extraction from URL slug
+    let theme = "vendas de produto digital";
+    try {
+      const urlObj = new URL(url);
+      const slug = urlObj.pathname.split("/").filter(Boolean).pop() || urlObj.hostname;
+      theme = slug.replace(/[-_]/g, " ").slice(0, 80).trim() || urlObj.hostname;
+    } catch {}
+
+    pageData = {
+      title: theme.charAt(0).toUpperCase() + theme.slice(1),
+      bodyText: `Tema principal: ${theme}\nOrigem: ${url}`,
+      images: [],
+      colors: ["#6d28d9", "#db2777"], // elegant brand colors
+      links: []
+    };
+    allPagesText = `O usuário tentou clonar o funil no endereço ${url}. Como a cópia direta falhou por bloqueios de rede, por favor, gere um funil de quiz completo, de alta conversão, extremamente profissional e completo baseado no tema: "${theme}". 
+    O funil deve conter de 4 a 6 etapas, contendo:
+    1. Etapa de abertura com título, descrição e botão chamativo.
+    2. Duas ou três etapas de perguntas de múltipla escolha com opções atrativas.
+    3. Etapa de captura (e-mail, nome, ou telefone) com botão de prosseguir.
+    4. Etapa de carregamento/loading simulando a análise de perfil.
+    5. Etapa final de planos de preço ou checkout para o produto associado ao tema.`;
   }
 
   // Stage 2: AI Analysis

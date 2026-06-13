@@ -23,9 +23,10 @@ export function LeadsPanel() {
   const leads = useFunnelStore((s) => s.leads);
   const clearLeads = useFunnelStore((s) => s.clearLeads);
   const addLead = useFunnelStore((s) => s.addLead);
-  const supabaseConfig = useFunnelStore((s) => s.supabaseConfig);
 
-  
+  // Check if Supabase is available (env vars or store config)
+  const hasSupabase = !!getActiveSupabaseClient();
+
   const [syncing, setSyncing] = useState(false);
   const [syncStatus, setSyncStatus] = useState<'idle' | 'ok' | 'error'>('idle');
 
@@ -129,7 +130,7 @@ export function LeadsPanel() {
             </p>
           </div>
           <div className="flex gap-2">
-            {supabaseConfig.url && (
+            {hasSupabase && (
               <Button
                 variant="outline"
                 size="sm"

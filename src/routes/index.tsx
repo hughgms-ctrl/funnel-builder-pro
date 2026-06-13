@@ -64,8 +64,6 @@ function FunnelsDashboard({ onLogout, userEmail }: { onLogout: () => void; userE
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [localOpenai, setLocalOpenai] = useState("");
   const [localAnthropic, setLocalAnthropic] = useState("");
-  const [dbTestState, setDbTestState] = useState<"idle" | "testing" | "success" | "error">("idle");
-  const [schemaSetupState, setSchemaSetupState] = useState<"idle" | "setting_up" | "success" | "error">("idle");
 
   // Merge current funnel into savedFunnels list if not present
   const allFunnels: Funnel[] = (() => {
@@ -132,8 +130,6 @@ function FunnelsDashboard({ onLogout, userEmail }: { onLogout: () => void; userE
             onClick={() => {
               setLocalOpenai(apiKeys.openai || "");
               setLocalAnthropic(apiKeys.anthropic || "");
-              setDbTestState("idle");
-              setSchemaSetupState("idle");
               setSettingsOpen(true);
             }}
             variant="outline"
@@ -290,91 +286,7 @@ function FunnelsDashboard({ onLogout, userEmail }: { onLogout: () => void; userE
                 </div>
               </div>
 
-              {/* ── SUPABASE CONFIG ── */}
-              <div className="space-y-4">
-                <div className="flex items-center gap-2 border-b border-zinc-800 pb-2">
-                  <Database className="h-4 w-4 text-violet-400" />
-                  <h3 className="font-semibold text-zinc-200">Banco de Dados (Supabase)</h3>
-                </div>
-
-                <div className="rounded-lg border border-emerald-500/20 bg-emerald-500/5 p-3 flex items-start gap-2.5">
-                  <Check className="h-4 w-4 text-emerald-500 shrink-0 mt-0.5" />
-                  <div className="space-y-1">
-                    <p className="text-xs font-semibold text-emerald-400">Supabase Conectado Automaticamente</p>
-                    <p className="text-[10px] text-zinc-400 leading-relaxed">
-                      Sua conta do Supabase está vinculada à Lovable por meio das chaves nativas do sistema. Não é necessário preenchimento manual.
-                    </p>
-                  </div>
-                </div>
-
-                {/* DB actions & validation */}
-                <div className="flex flex-wrap gap-2 pt-1">
-                  <Button
-                    onClick={async () => {
-                      setDbTestState("testing");
-                      const ok = await testSupabaseConnection();
-                      if (ok) {
-                        setDbTestState("success");
-                        toast.success("Conexão com o Supabase efetuada com sucesso!");
-                      } else {
-                        setDbTestState("error");
-                        toast.error("Falha ao se conectar com as chaves injetadas do Supabase. Verifique sua integração Lovable.");
-                      }
-                    }}
-                    disabled={dbTestState === "testing"}
-                    variant="outline"
-                    size="sm"
-                    className="text-xs border-zinc-700 bg-zinc-950 hover:bg-zinc-800 flex items-center gap-1.5"
-                  >
-                    {dbTestState === "testing" ? (
-                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                    ) : dbTestState === "success" ? (
-                      <Check className="h-3.5 w-3.5 text-emerald-500" />
-                    ) : (
-                      <Database className="h-3.5 w-3.5 text-violet-400" />
-                    )}
-                    Testar Conexão
-                  </Button>
-
-                  <Button
-                    onClick={async () => {
-                      setSchemaSetupState("setting_up");
-                      try {
-                        await ensureSchema();
-                        setSchemaSetupState("success");
-                        toast.success("Tabelas 'funnels' e 'leads' configuradas no Supabase!");
-                      } catch {
-                        setSchemaSetupState("error");
-                        toast.error("Erro ao criar tabelas. Verifique a integração.");
-                      }
-                    }}
-                    disabled={
-                      schemaSetupState === "setting_up" ||
-                      dbTestState !== "success"
-                    }
-                    variant="outline"
-                    size="sm"
-                    className="text-xs border-zinc-700 bg-zinc-950 hover:bg-zinc-800 flex items-center gap-1.5"
-                  >
-                    {schemaSetupState === "setting_up" ? (
-                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                    ) : schemaSetupState === "success" ? (
-                      <Check className="h-3.5 w-3.5 text-emerald-500" />
-                    ) : (
-                      <Plus className="h-3.5 w-3.5 text-violet-400" />
-                    )}
-                    Configurar Tabelas (SQL)
-                  </Button>
-                </div>
-
-                <div className="flex gap-2 text-[10px] text-zinc-500 bg-zinc-950/60 rounded-lg p-3 border border-zinc-800/50">
-                  <Info className="h-3.5 w-3.5 text-violet-400 shrink-0 mt-0.5" />
-                  <span>
-                    O Supabase gerencia e persiste seus funis e dados de leads. Clique em "Configurar Tabelas" para criar a estrutura no seu banco.
-                  </span>
-                </div>
-              </div>
-
+              {/* Apenas chaves de API restam no modal */}
             </div>
 
             {/* Footer */}

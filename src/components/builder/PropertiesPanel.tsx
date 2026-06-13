@@ -417,7 +417,25 @@ function ComponentEditor({
             <Field label={t.buttonText}>
               <Input value={data.buttonText || ""} onChange={(e) => onChange({ buttonText: e.target.value })} />
             </Field>
-            <NextSelect value={data.nextStepId} onSet={(v) => onChange({ nextStepId: v })} />
+            <Field label="Link Externo (URL)" hint="Se preenchido, abre este link ao clicar em comprar">
+              <Input
+                placeholder="https://checkout.exemplo.com/comprar"
+                value={data.href || ""}
+                onChange={(e) => onChange({ href: e.target.value })}
+              />
+            </Field>
+            {data.href && (
+              <div className="flex items-center justify-between">
+                <span className="text-sm">Abrir em nova aba</span>
+                <Switch
+                  checked={!!data.openInNewTab}
+                  onCheckedChange={(v) => onChange({ openInNewTab: v })}
+                />
+              </div>
+            )}
+            {!data.href && (
+              <NextSelect value={data.nextStepId} onSet={(v) => onChange({ nextStepId: v })} />
+            )}
           </>
         );
       case "arguments":
@@ -885,10 +903,11 @@ function StyleEditor({
   );
 }
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+function Field({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
   return (
     <div className="space-y-1.5">
       <Label>{label}</Label>
+      {hint && <p className="text-[10px] text-muted-foreground leading-snug -mt-0.5">{hint}</p>}
       {children}
     </div>
   );
