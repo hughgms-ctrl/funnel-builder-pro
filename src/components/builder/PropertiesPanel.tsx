@@ -277,15 +277,21 @@ function ComponentEditor({
                     </div>
                   </div>
 
-                  <Input
-                    placeholder={t.imageUrl}
-                    value={opt.image || ""}
-                    onChange={(e) => {
-                      const arr = [...(data.options || [])];
-                      arr[i] = { ...opt, image: e.target.value };
-                      onChange({ options: arr });
-                    }}
-                  />
+                  <div className="space-y-1.5">
+                    <Label className="text-[10px] text-muted-foreground flex items-center gap-1">🖼️ Imagem da Opção</Label>
+                    {opt.image && (
+                      <img src={opt.image} alt={opt.label} className="w-full h-24 object-cover rounded-lg border" />
+                    )}
+                    <Input
+                      placeholder="https://... (URL da imagem)"
+                      value={opt.image || ""}
+                      onChange={(e) => {
+                        const arr = [...(data.options || [])];
+                        arr[i] = { ...opt, image: e.target.value };
+                        onChange({ options: arr });
+                      }}
+                    />
+                  </div>
                   <Select
                     value={opt.nextStepId || "__none"}
                     onValueChange={(v) => {
