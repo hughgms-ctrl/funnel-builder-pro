@@ -302,10 +302,16 @@ function ComponentEditor({
           <>
             <Field label={t.imageUrl}>
               {data.imageUrl && (
-                <img src={data.imageUrl} alt={data.alt} className="w-full h-32 object-cover rounded-lg border mb-2" />
+                <div className="relative mb-2">
+                  <img src={data.imageUrl} alt={data.alt} className="w-full h-32 object-cover rounded-lg border" />
+                  <Button type="button" size="icon" variant="secondary" className="absolute right-2 top-2 h-7 w-7" onClick={() => onChange({ imageUrl: "" })}>
+                    <X className="h-3.5 w-3.5" />
+                  </Button>
+                </div>
               )}
               <Input value={data.imageUrl || ""} onChange={(e) => onChange({ imageUrl: e.target.value })} />
             </Field>
+            <ImageUploader onImageUploaded={(url) => onChange({ imageUrl: url })} />
             <AIImageGenerator
               initialPrompt={data.alt || ""}
               onImageGenerated={(url) => onChange({ imageUrl: url })}
@@ -415,7 +421,22 @@ function ComponentEditor({
                   <div className="space-y-1.5 border-t pt-2 mt-1">
                     <Label className="text-[10px] text-muted-foreground flex items-center gap-1">🖼️ Imagem da Opção (Opcional)</Label>
                     {opt.image && (
-                      <img src={opt.image} alt={opt.label} className="w-full h-24 object-cover rounded-lg border animate-in fade-in" />
+                      <div className="relative">
+                        <img src={opt.image} alt={opt.label} className="w-full h-24 object-cover rounded-lg border animate-in fade-in" />
+                        <Button
+                          type="button"
+                          size="icon"
+                          variant="secondary"
+                          className="absolute right-2 top-2 h-7 w-7"
+                          onClick={() => {
+                            const arr = [...(data.options || [])];
+                            arr[i] = { ...opt, image: "" };
+                            onChange({ options: arr });
+                          }}
+                        >
+                          <X className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
                     )}
                     <Input
                       placeholder="https://... (URL da imagem)"
@@ -426,6 +447,13 @@ function ComponentEditor({
                         onChange({ options: arr });
                       }}
                       className="text-xs"
+                    />
+                    <ImageUploader
+                      onImageUploaded={(url) => {
+                        const arr = [...(data.options || [])];
+                        arr[i] = { ...opt, image: url };
+                        onChange({ options: arr });
+                      }}
                     />
                     <AIImageGenerator
                       initialPrompt={`Foto representando a opção: ${opt.label}. Fundo limpo, profissional, sem texto.`}
