@@ -32,8 +32,8 @@ interface FunnelClonerModalProps {
 }
 
 const STAGES = [
-  { key: "fetching", label: "Acessando URL" },
-  { key: "analyzing", label: "Analisando com IA" },
+  { key: "fetching", label: "Capturando screenshot" },
+  { key: "analyzing", label: "Analisando com Vision IA" },
   { key: "extracting", label: "Estruturando funil" },
   { key: "generating_images", label: "Gerando imagens" },
   { key: "building", label: "Importando" },
