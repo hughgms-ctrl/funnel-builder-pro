@@ -203,8 +203,17 @@ export interface SupabaseConfig {
   anonKey?: string;
 }
 
+// Global platform-level settings (not per-funnel)
+export interface PlatformSettings {
+  openaiKey?: string;
+  anthropicKey?: string;
+  supabaseUrl?: string;
+  supabaseAnonKey?: string;
+}
+
 interface FunnelState {
   funnel: Funnel;
+  savedFunnels: Funnel[];
   selectedStepId: string | null;
   selectedComponentId: string | null;
   leads: Lead[];
@@ -230,17 +239,31 @@ interface FunnelState {
   clearLeads: () => void;
   setApiKeys: (keys: Partial<ApiKeys>) => void;
   setSupabaseConfig: (cfg: Partial<SupabaseConfig>) => void;
+  // platform-level settings
+  platformSettings: PlatformSettings;
+  setPlatformSettings: (patch: Partial<PlatformSettings>) => void;
+  // multi-funnel actions
+  createFunnel: () => Funnel;
+  saveCurrentFunnel: () => void;
+  loadFunnel: (id: string) => void;
+  deleteSavedFunnel: (id: string) => void;
+  duplicateSavedFunnel: (id: string) => Funnel;
+  renameSavedFunnel: (id: string, name: string) => void;
 }
 
 export const useFunnelStore = create<FunnelState>()(
   persist(
     (set, get) => ({
       funnel: initialFunnel(),
+      savedFunnels: [],
       selectedStepId: null,
       selectedComponentId: null,
       leads: [],
       apiKeys: {},
       supabaseConfig: {},
+      platformSettings: {},
+      setPlatformSettings: (patch) =>
+        set((s) => ({ platformSettings: { ...s.platformSettings, ...patch } })),
       setFunnel: (funnel) => set({ funnel }),
       updateFunnel: (patch) => set((s) => ({ funnel: { ...s.funnel, ...patch } })),
       selectStep: (id) => set({ selectedStepId: id, selectedComponentId: null }),
@@ -373,15 +396,84 @@ export const useFunnelStore = create<FunnelState>()(
             }),
           },
         })),
-      addLead: (lead) => set((s) => ({ leads: [lead, ...s.leads] })),
+      addLead: (lead) =>
+        set((s) => {
+          const exists = s.leads.some((l) => l.id === lead.id);
+          const leads = exists
+            ? s.leads.map((l) => (l.id === lead.id ? lead : l))
+            : [lead, ...s.leads];
+          return { leads };
+        }),
       clearLeads: () => set({ leads: [] }),
       setApiKeys: (keys) => set((s) => ({ apiKeys: { ...s.apiKeys, ...keys } })),
       setSupabaseConfig: (cfg) => set((s) => ({ supabaseConfig: { ...s.supabaseConfig, ...cfg } })),
+
+      // ── Multi-funnel management ────────────────────────────────────────────
+      createFunnel: () => {
+        const newFunnel = initialFunnel();
+        set((s) => ({
+          savedFunnels: [newFunnel, ...s.savedFunnels],
+          funnel: newFunnel,
+          selectedStepId: null,
+          selectedComponentId: null,
+          leads: [],
+        }));
+        return newFunnel;
+      },
+
+      saveCurrentFunnel: () => {
+        const { funnel, savedFunnels } = get();
+        const exists = savedFunnels.some((f) => f.id === funnel.id);
+        if (exists) {
+          set({ savedFunnels: savedFunnels.map((f) => (f.id === funnel.id ? funnel : f)) });
+        } else {
+          set({ savedFunnels: [funnel, ...savedFunnels] });
+        }
+      },
+
+      loadFunnel: (id) => {
+        const { savedFunnels } = get();
+        const found = savedFunnels.find((f) => f.id === id);
+        if (found) {
+          set({ funnel: found, selectedStepId: null, selectedComponentId: null, leads: [] });
+        }
+      },
+
+      deleteSavedFunnel: (id) => {
+        set((s) => ({
+          savedFunnels: s.savedFunnels.filter((f) => f.id !== id),
+        }));
+      },
+
+      duplicateSavedFunnel: (id) => {
+        const { savedFunnels } = get();
+        const original = savedFunnels.find((f) => f.id === id);
+        if (!original) return initialFunnel();
+        const copy: Funnel = {
+          ...original,
+          id: uid(),
+          name: `${original.name} (cópia)`,
+          steps: original.steps.map((s) => ({
+            ...s,
+            id: uid(),
+            components: s.components.map((c) => ({ ...c, id: uid() })),
+          })),
+        };
+        set((s) => ({
+          savedFunnels: [copy, ...s.savedFunnels],
+        }));
+        return copy;
+      },
+
+      renameSavedFunnel: (id, name) => {
+        set((s) => ({
+          savedFunnels: s.savedFunnels.map((f) => (f.id === id ? { ...f, name } : f)),
+          funnel: s.funnel.id === id ? { ...s.funnel, name } : s.funnel,
+        }));
+      },
     }),
     { name: "quizfunnel-state" },
   ),
 );
 
 export { componentDefaults };
-
-

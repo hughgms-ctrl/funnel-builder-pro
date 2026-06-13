@@ -186,7 +186,25 @@ function ComponentEditor({
             <Field label={t.buttonText}>
               <Input value={data.buttonText || ""} onChange={(e) => onChange({ buttonText: e.target.value })} />
             </Field>
-            <NextSelect value={data.nextStepId} onSet={(v) => onChange({ nextStepId: v })} />
+            <Field label="Link Externo (URL)" hint="Se preenchido, abre este link em vez de avançar de etapa">
+              <Input
+                placeholder="https://seusite.com/pagina"
+                value={data.href || ""}
+                onChange={(e) => onChange({ href: e.target.value })}
+              />
+            </Field>
+            {data.href && (
+              <div className="flex items-center justify-between">
+                <span className="text-sm">Abrir em nova aba</span>
+                <Switch
+                  checked={!!data.openInNewTab}
+                  onCheckedChange={(v) => onChange({ openInNewTab: v })}
+                />
+              </div>
+            )}
+            {!data.href && (
+              <NextSelect value={data.nextStepId} onSet={(v) => onChange({ nextStepId: v })} />
+            )}
           </>
         );
       case "options":
@@ -653,6 +671,37 @@ function ComponentEditor({
                         </SelectContent>
                       </Select>
                     </div>
+                  </div>
+
+                  {/* Payment link per plan */}
+                  <div className="space-y-1 border-t pt-2 mt-1">
+                    <Label className="text-[10px] text-violet-600 font-semibold">💳 Link de Pagamento do Plano</Label>
+                    <Input
+                      placeholder="https://checkout.exemplo.com/plano-7-dias"
+                      value={plan.href || ""}
+                      onChange={(e) => {
+                        const arr = [...(data.plans || [])];
+                        arr[i] = { ...plan, href: e.target.value };
+                        onChange({ plans: arr });
+                      }}
+                      className="font-mono text-xs"
+                    />
+                    {plan.href && (
+                      <div className="flex items-center justify-between mt-1">
+                        <span className="text-[10px] text-muted-foreground">Abrir em nova aba</span>
+                        <Switch
+                          checked={!!plan.openInNewTab}
+                          onCheckedChange={(v) => {
+                            const arr = [...(data.plans || [])];
+                            arr[i] = { ...plan, openInNewTab: v };
+                            onChange({ plans: arr });
+                          }}
+                        />
+                      </div>
+                    )}
+                    <p className="text-[10px] text-muted-foreground">
+                      Sobrescreve o Link de Venda padrão do funil para este plano específico.
+                    </p>
                   </div>
 
                   <div className="flex items-center justify-between border-t pt-2 mt-1">

@@ -13,6 +13,7 @@ import {
   Download,
   RefreshCw,
   Database,
+  ShoppingCart,
 } from "lucide-react";
 import type { ComponentData } from "@/lib/types";
 
@@ -22,6 +23,8 @@ export function LeadsPanel() {
   const leads = useFunnelStore((s) => s.leads);
   const clearLeads = useFunnelStore((s) => s.clearLeads);
   const addLead = useFunnelStore((s) => s.addLead);
+  const supabaseConfig = useFunnelStore((s) => s.supabaseConfig);
+
   
   const [syncing, setSyncing] = useState(false);
   const [syncStatus, setSyncStatus] = useState<'idle' | 'ok' | 'error'>('idle');
@@ -74,6 +77,7 @@ export function LeadsPanel() {
   const interactionRate = visitorsCount ? ((leadsCount / visitorsCount) * 100).toFixed(1) : "0.0";
   const qualifiedLeads = totalLeads ? Math.round(totalLeads * 0.75) + 1 : 0;
   const completedFlows = totalLeads;
+  const salesCount = leads.filter((l) => l.answers.converted || l.answers.isSale || l.answers._converted).length;
 
   // Função auxiliar para encontrar a resposta de um lead numa determinada etapa
   const getStepAnswers = (leadAnswers: Record<string, any>, stepComponents: ComponentData[]) => {
@@ -153,41 +157,48 @@ export function LeadsPanel() {
         </div>
 
         {/* KPI Grid */}
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-6 gap-4">
           <KpiCard
             icon={Eye}
             label="Visitantes"
             value={visitorsCount}
             desc="Acessaram o funil"
-            color="text-blue-600 bg-blue-50 border-blue-100"
+            color="text-blue-600 bg-blue-50 border-blue-100 dark:text-blue-400 dark:bg-blue-950/20"
           />
           <KpiCard
             icon={User}
             label="Leads Adquiridos"
             value={leadsCount}
             desc="Iniciaram interação"
-            color="text-purple-600 bg-purple-50 border-purple-100"
+            color="text-purple-600 bg-purple-50 border-purple-100 dark:text-purple-400 dark:bg-purple-950/20"
           />
           <KpiCard
             icon={Percent}
             label="Taxa Interação"
             value={`${interactionRate}%`}
             desc="Interagiram com funil"
-            color="text-amber-600 bg-amber-50 border-amber-100"
+            color="text-amber-600 bg-amber-50 border-amber-100 dark:text-amber-400 dark:bg-amber-950/20"
           />
           <KpiCard
             icon={CheckSquare}
             label="Leads Qualificados"
             value={qualifiedLeads}
             desc="+50% de respostas"
-            color="text-green-600 bg-green-50 border-green-100"
+            color="text-green-600 bg-green-50 border-green-100 dark:text-green-400 dark:bg-green-950/20"
           />
           <KpiCard
             icon={FileCheck2}
             label="Fluxos Completos"
             value={completedFlows}
             desc="Concluíram o funil"
-            color="text-indigo-600 bg-indigo-50 border-indigo-100"
+            color="text-indigo-600 bg-indigo-50 border-indigo-100 dark:text-indigo-400 dark:bg-indigo-950/20"
+          />
+          <KpiCard
+            icon={ShoppingCart}
+            label="Vendas"
+            value={salesCount}
+            desc="Conversões / Pagos"
+            color="text-emerald-600 bg-emerald-50 border-emerald-100 dark:text-emerald-400 dark:bg-emerald-950/20"
           />
         </div>
 
@@ -203,7 +214,7 @@ export function LeadsPanel() {
             </div>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full text-sm border-collapse min-w-[700px]">
+              <table className="w-full text-sm border-collapse min-w-[800px]">
                 <thead>
                   <tr className="bg-muted/40 text-muted-foreground border-b text-xs font-semibold uppercase tracking-wider text-left">
                     <th className="px-4 py-3 font-semibold">Entrada</th>
@@ -212,6 +223,7 @@ export function LeadsPanel() {
                         {step.title}
                       </th>
                     ))}
+                    <th className="px-4 py-3 font-semibold min-w-[150px] text-right">Status de Venda</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border">
@@ -233,6 +245,17 @@ export function LeadsPanel() {
                           </span>
                         </td>
                       ))}
+                      <td className="px-4 py-3 text-xs text-right whitespace-nowrap">
+                        {l.answers.converted || l.answers.isSale || l.answers._converted ? (
+                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">
+                            💰 Venda (Aprovada)
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-medium bg-zinc-800 text-zinc-400 border border-zinc-700">
+                            ⏳ Pendente
+                          </span>
+                        )}
+                      </td>
                     </tr>
                   ))}
                 </tbody>

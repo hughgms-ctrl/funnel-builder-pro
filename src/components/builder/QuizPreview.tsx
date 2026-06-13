@@ -145,6 +145,7 @@ export function QuizPreview({ funnel, startStepId, onExit, embedded }: Props) {
   const t = useT();
   const addLead = useFunnelStore((s) => s.addLead);
   const supabaseConfig = useFunnelStore((s) => s.supabaseConfig);
+  const [leadId] = useState(() => Math.random().toString(36).slice(2));
   const [stepId, setStepId] = useState<string>(startStepId || funnel.steps[0]?.id);
   const [history, setHistory] = useState<string[]>([]);
   const [answers, setAnswers] = useState<Record<string, unknown>>({});
@@ -201,20 +202,47 @@ export function QuizPreview({ funnel, startStepId, onExit, embedded }: Props) {
     score: totalScore,
   };
 
-  const fireLead = async (vars: Record<string, unknown>) => {
-    const lead = { id: Math.random().toString(36).slice(2), createdAt: Date.now(), answers: vars };
+  const fireLead = async (vars: Record<string, unknown>, isSale = false) => {
+    const updatedAnswers = { ...vars };
+    if (isSale) {
+      updatedAnswers.converted = true;
+      updatedAnswers.isSale = true;
+      updatedAnswers._converted = true;
+    }
+    const lead = { id: leadId, createdAt: Date.now(), answers: updatedAnswers };
     addLead(lead);
 
     // Fire webhook
-    if (funnel.leadWebhookUrl) {
-      try {
-        await fetch(funnel.leadWebhookUrl, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ ...lead, funnelName: funnel.name, funnelId: funnel.id }),
-          mode: 'no-cors',
-        });
-      } catch { /* silent */ }
+    if (isSale) {
+      if (funnel.saleWebhookUrl) {
+        try {
+          await fetch(funnel.saleWebhookUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ ...lead, funnelName: funnel.name, funnelId: funnel.id, converted: true }),
+            mode: 'no-cors',
+          });
+        } catch { /* silent */ }
+      }
+      // Fire Meta pixel Purchase event
+      if (funnel.metaPixelId && typeof window !== 'undefined' && (window as any).fbq) {
+        (window as any).fbq('track', 'Purchase', { currency: 'BRL', value: 0 });
+      }
+    } else {
+      if (funnel.leadWebhookUrl) {
+        try {
+          await fetch(funnel.leadWebhookUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ ...lead, funnelName: funnel.name, funnelId: funnel.id }),
+            mode: 'no-cors',
+          });
+        } catch { /* silent */ }
+      }
+      // Fire Meta pixel lead event
+      if (funnel.metaPixelId && typeof window !== 'undefined' && (window as any).fbq) {
+        (window as any).fbq('track', 'Lead');
+      }
     }
 
     // Save to Supabase
@@ -225,15 +253,25 @@ export function QuizPreview({ funnel, startStepId, onExit, embedded }: Props) {
         console.error("Erro ao salvar lead no Supabase:", err);
       }
     }
-
-    // Fire Meta pixel lead event
-    if (funnel.metaPixelId && typeof window !== 'undefined' && (window as any).fbq) {
-      (window as any).fbq('track', 'Lead');
-    }
   };
 
   const goNext = (nextStepId?: string) => {
     setHistory((h) => [...h, stepId]);
+
+    // Find what step we're going to
+    const targetStepId = nextStepId ||
+      (() => {
+        const idx = funnel.steps.findIndex((s) => s.id === stepId);
+        return idx >= 0 && idx < funnel.steps.length - 1 ? funnel.steps[idx + 1].id : null;
+      })();
+
+    const targetStep = targetStepId ? funnel.steps.find((s) => s.id === targetStepId) : null;
+
+    // If the target step is a sale step — fire conversion events
+    if (targetStep?.isSaleStep) {
+      fireLead(variables, true);
+    }
+
     if (nextStepId) {
       setStepId(nextStepId);
       return;
@@ -304,6 +342,7 @@ export function QuizPreview({ funnel, startStepId, onExit, embedded }: Props) {
       funnel={funnel}
       step={step}
       variables={variables}
+      fireLead={fireLead}
       onAnswer={(value, nextStepId, scoreValue, optVarName) => {
         if (scoreValue !== undefined) {
           setComponentScores((s) => ({ ...s, [c.id]: scoreValue }));
@@ -454,9 +493,10 @@ interface RenderProps {
   variables: Record<string, any>;
   onAnswer: (value: unknown, nextStepId?: string, scoreValue?: number, optVarName?: string) => void;
   onSubmitCapture: (values: Record<string, unknown>, fieldVars: Record<string, unknown>, nextStepId?: string) => void;
+  fireLead: (vars: Record<string, unknown>, isSale?: boolean) => Promise<void>;
 }
 
-function RenderComponent({ data, funnel, variables, onAnswer, onSubmitCapture }: RenderProps) {
+function RenderComponent({ data, funnel, variables, onAnswer, onSubmitCapture, fireLead }: RenderProps) {
   const t = useT();
   const primary = funnel.primaryColor;
 
@@ -540,7 +580,15 @@ function RenderComponent({ data, funnel, variables, onAnswer, onSubmitCapture }:
     case "button":
       return (
         <button
-          onClick={() => onAnswer(data.buttonText, data.nextStepId)}
+          onClick={() => {
+            if (data.href) {
+              // External link — open URL, don't advance
+              fireLead(variables, true);
+              window.open(data.href, data.openInNewTab !== false ? '_blank' : '_self');
+            } else {
+              onAnswer(data.buttonText, data.nextStepId);
+            }
+          }}
           className={`w-full py-3.5 px-4 font-semibold text-white transition-transform active:scale-95 shadow-md ${getAnimationClass()} ${appliedStyles}`}
           style={{ background: primary }}
         >
@@ -672,10 +720,12 @@ function RenderComponent({ data, funnel, variables, onAnswer, onSubmitCapture }:
           </ul>
           <button
             onClick={() => {
-              onAnswer(data.price, data.nextStepId);
-              if (funnel.saleUrl) {
-                window.open(funnel.saleUrl, '_blank');
+              const link = data.href || funnel.saleUrl;
+              if (link) {
+                fireLead(variables, true);
+                window.open(link, data.openInNewTab !== false ? '_blank' : '_self');
               }
+              onAnswer(data.price, data.nextStepId);
             }}
             className="w-full py-3.5 px-4 rounded-lg font-semibold text-white shadow-md transition active:scale-95"
             style={{ background: primary }}
@@ -789,10 +839,13 @@ function RenderComponent({ data, funnel, variables, onAnswer, onSubmitCapture }:
                 <div
                   key={plan.id}
                   onClick={() => {
-                    onAnswer(plan.name, plan.nextStepId);
-                    if (funnel.saleUrl) {
-                      window.open(funnel.saleUrl, '_blank');
+                    // Use plan-specific href, or fall back to funnel.saleUrl
+                    const link = plan.href || funnel.saleUrl;
+                    if (link) {
+                      fireLead(variables, true);
+                      window.open(link, plan.openInNewTab !== false ? '_blank' : '_self');
                     }
+                    onAnswer(plan.name, plan.nextStepId);
                   }}
                   className={`relative cursor-pointer transition hover:scale-[1.01] rounded-xl border-2 flex flex-col items-stretch overflow-hidden bg-background ${
                     isPopular ? "border-green-600 shadow-md" : "border-border hover:border-foreground/30"

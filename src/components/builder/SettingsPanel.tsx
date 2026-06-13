@@ -2,14 +2,14 @@ import { useState } from "react";
 import { useFunnelStore } from "@/lib/store";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import {
-  Key,
   Globe,
   Webhook,
   BarChart2,
-  Eye,
-  EyeOff,
   ExternalLink,
+  ShoppingCart,
+  Info,
 } from "lucide-react";
 
 function SectionHeader({
@@ -52,116 +52,40 @@ function Field({
   );
 }
 
-function SecretInput({
-  id,
-  value,
-  onChange,
-  placeholder,
-  disabled,
-}: {
-  id: string;
-  value: string;
-  onChange: (v: string) => void;
-  placeholder?: string;
-  disabled?: boolean;
-}) {
-  const [show, setShow] = useState(false);
-  return (
-    <div className="relative">
-      <Input
-        id={id}
-        type={show ? "text" : "password"}
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        placeholder={placeholder}
-        disabled={disabled}
-        className="pr-9 font-mono text-xs"
-      />
-      <button
-        type="button"
-        onClick={() => setShow((s) => !s)}
-        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-      >
-        {show ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
-      </button>
-    </div>
-  );
-}
-
 function Divider() {
   return <div className="border-t my-6" />;
 }
 
-type ConnectionStatus = "idle" | "testing" | "ok" | "error";
-
 export function SettingsPanel() {
-  const apiKeys = useFunnelStore((s) => s.apiKeys);
   const funnel = useFunnelStore((s) => s.funnel);
-  const setApiKeys = useFunnelStore((s) => s.setApiKeys);
   const updateFunnel = useFunnelStore((s) => s.updateFunnel);
+  const updateStep = useFunnelStore((s) => s.updateStep);
 
   return (
     <div className="flex-1 overflow-y-auto p-6 bg-muted/10">
       <div className="mx-auto max-w-2xl space-y-0">
         {/* Header */}
         <div className="mb-6">
-          <h2 className="text-xl font-bold">Configurações</h2>
+          <h2 className="text-xl font-bold">Configurações do Funil</h2>
           <p className="text-sm text-muted-foreground mt-1">
-            Chaves de API, integrações, pixels e configurações de publicação do funil.
+            Pixels, webhooks, links de venda e integrações deste funil específico.
+            <span className="ml-1 text-violet-600 font-medium">
+              As chaves de API ficam nas ⚙️ Configurações da Plataforma (no painel principal).
+            </span>
           </p>
         </div>
-
-        {/* ── API KEYS ── */}
-        <div className="rounded-xl border bg-background p-5 shadow-sm space-y-4">
-          <SectionHeader
-            icon={Key}
-            title="Chaves de API"
-            desc="Necessárias para o clonador de funis e geração de imagens com IA."
-          />
-
-          <Field
-            label="OpenAI API Key"
-            hint="Necessária para GPT-4o Vision + DALL·E 3 (geração de imagens)"
-          >
-            <SecretInput
-              id="openai-key"
-              value={apiKeys.openai || ""}
-              onChange={(v) => setApiKeys({ openai: v })}
-              placeholder="sk-..."
-            />
-          </Field>
-
-          <Field
-            label="Anthropic API Key"
-            hint="Necessária para Claude 3.5 Sonnet (análise alternativa de funis)"
-          >
-            <SecretInput
-              id="anthropic-key"
-              value={apiKeys.anthropic || ""}
-              onChange={(v) => setApiKeys({ anthropic: v })}
-              placeholder="sk-ant-..."
-            />
-          </Field>
-
-          <div className="flex gap-2 text-xs text-muted-foreground bg-muted/50 rounded-lg p-3">
-            <span>🔒</span>
-            <span>As chaves são salvas localmente no seu navegador e nunca enviadas para nossos servidores.</span>
-          </div>
-        </div>
-
-        <Divider />
 
         {/* ── PUBLICAÇÃO DO FUNIL ── */}
         <div className="rounded-xl border bg-background p-5 shadow-sm space-y-4">
           <SectionHeader
             icon={Globe}
-            title="Publicação do Funil"
-            desc="Configure o link de venda, redirecionamentos e destino dos leads."
+            title="Link de Venda / Checkout"
+            desc="Link padrão de checkout. Pode ser sobrescrito por plano ou por botão individualmente."
           />
 
           <Field
-            label="Link de Venda / Checkout"
-            hint="Usuário é redirecionado para este link ao clicar em Comprar (componente Price/Plans)"
+            label="URL de Venda (fallback global)"
+            hint="Usado quando o componente Price/Button não tem um link próprio definido."
           >
             <div className="relative">
               <Input
@@ -186,28 +110,106 @@ export function SettingsPanel() {
 
         <Divider />
 
+        {/* ── ETAPA DE VENDA ── */}
+        <div className="rounded-xl border bg-background p-5 shadow-sm space-y-4">
+          <SectionHeader
+            icon={ShoppingCart}
+            title="Etapa de Venda / Conversão"
+            desc="Marque qual etapa representa uma venda concluída. Leads que chegam até ela serão contabilizados como conversões."
+          />
+
+          <div className="space-y-2">
+            {funnel.steps.length === 0 ? (
+              <p className="text-sm text-muted-foreground">Nenhuma etapa criada ainda.</p>
+            ) : (
+              funnel.steps.map((step) => (
+                <div key={step.id} className="flex items-center justify-between rounded-lg border p-3 bg-muted/20">
+                  <div>
+                    <p className="text-sm font-medium">{step.title}</p>
+                    <p className="text-xs text-muted-foreground">{step.components.length} componente(s)</p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {step.isSaleStep && (
+                      <span className="text-[10px] font-bold bg-emerald-500/15 text-emerald-600 border border-emerald-500/30 px-2 py-0.5 rounded-full">
+                        💰 VENDA
+                      </span>
+                    )}
+                    <Switch
+                      checked={!!step.isSaleStep}
+                      onCheckedChange={(v) => {
+                        // Only one sale step at a time — unmark others
+                        if (v) {
+                          funnel.steps.forEach((s) => {
+                            if (s.id !== step.id && s.isSaleStep) {
+                              updateStep(s.id, { isSaleStep: false });
+                            }
+                          });
+                        }
+                        updateStep(step.id, { isSaleStep: v });
+                      }}
+                    />
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+
+          <div className="flex gap-2 text-xs text-muted-foreground bg-muted/50 rounded-lg p-3">
+            <Info className="h-4 w-4 shrink-0 mt-0.5" />
+            <span>
+              Quando um lead completa todas as etapas até a etapa marcada como Venda, ele aparece como conversão no painel de Leads &amp; Métricas.
+            </span>
+          </div>
+        </div>
+
+        <Divider />
+
         {/* ── LEADS WEBHOOK ── */}
         <div className="rounded-xl border bg-background p-5 shadow-sm space-y-4">
           <SectionHeader
             icon={Webhook}
-            title="Webhook de Leads"
-            desc="Receba os leads automaticamente no seu CRM, Make, Zapier ou n8n."
+            title="Webhooks"
+            desc="Conecte seu funil ao CRM, Make, Zapier ou n8n."
           />
 
           <Field
-            label="URL do Webhook"
-            hint="POST com JSON {id, createdAt, answers} para cada lead capturado"
+            label="Webhook de Leads"
+            hint="POST com JSON {id, funnelName, createdAt, answers} para cada lead capturado"
           >
             <div className="relative">
               <Input
                 value={funnel.leadWebhookUrl || ""}
                 onChange={(e) => updateFunnel({ leadWebhookUrl: e.target.value })}
-                placeholder="https://hook.make.com/seu-webhook"
+                placeholder="https://hook.make.com/leads-webhook"
                 className="pr-9 font-mono text-xs"
               />
               {funnel.leadWebhookUrl && (
                 <a
                   href={funnel.leadWebhookUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                >
+                  <ExternalLink className="h-3.5 w-3.5" />
+                </a>
+              )}
+            </div>
+          </Field>
+
+          <Field
+            label="Webhook de Vendas / Conversões"
+            hint="POST disparado quando o lead chega na etapa marcada como Venda"
+          >
+            <div className="relative">
+              <Input
+                value={funnel.saleWebhookUrl || ""}
+                onChange={(e) => updateFunnel({ saleWebhookUrl: e.target.value })}
+                placeholder="https://hook.make.com/vendas-webhook"
+                className="pr-9 font-mono text-xs"
+              />
+              {funnel.saleWebhookUrl && (
+                <a
+                  href={funnel.saleWebhookUrl}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
@@ -238,7 +240,8 @@ export function SettingsPanel() {
   "id": "abc123",
   "funnelName": "${funnel.name}",
   "createdAt": "2025-01-01T00:00:00Z",
-  "answers": { "nome": "João", "email": "j@ex.com" }
+  "answers": { "nome": "João", "email": "j@ex.com" },
+  "converted": false
 }`}
             </pre>
           </div>

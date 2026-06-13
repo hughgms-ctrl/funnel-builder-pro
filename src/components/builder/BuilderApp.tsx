@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useNavigate } from "@tanstack/react-router";
 import { useT, useLangStore } from "@/lib/i18n";
 import { useFunnelStore } from "@/lib/store";
 import { StepsList } from "@/components/builder/StepsList";
@@ -21,9 +22,10 @@ import {
   Settings as SettingsIcon,
   Play,
   Check,
-  Copy,
   Sparkles,
   LogOut,
+  ChevronLeft,
+  Save,
 } from "lucide-react";
 
 type Tab = "builder" | "flow" | "design" | "leads" | "settings";
@@ -33,11 +35,24 @@ export function BuilderApp() {
   const lang = useLangStore((s) => s.lang);
   const setLang = useLangStore((s) => s.setLang);
   const funnel = useFunnelStore((s) => s.funnel);
+  const saveCurrentFunnel = useFunnelStore((s) => s.saveCurrentFunnel);
   const { logout } = useAuth();
+  const navigate = useNavigate();
   const [tab, setTab] = useState<Tab>("builder");
   const [preview, setPreview] = useState(false);
   const [savedFlash, setSavedFlash] = useState(false);
   const [clonerOpen, setClonerOpen] = useState(false);
+
+  const handleSave = () => {
+    saveCurrentFunnel();
+    setSavedFlash(true);
+    setTimeout(() => setSavedFlash(false), 1500);
+  };
+
+  const handleBackToDashboard = () => {
+    saveCurrentFunnel();
+    navigate({ to: "/" });
+  };
 
   const TabButton = ({
     id,
@@ -67,9 +82,26 @@ export function BuilderApp() {
     <div className="h-screen flex flex-col bg-background">
       {/* Top bar */}
       <div className="h-12 border-b flex items-center justify-between px-3 shrink-0">
-        <div className="flex items-center gap-1 w-72">
-          <span className="font-bold text-sm px-2">{t.appName}</span>
+        {/* Left: back + funnel name */}
+        <div className="flex items-center gap-2 w-72">
+          <button
+            onClick={handleBackToDashboard}
+            className="flex items-center gap-1 text-muted-foreground hover:text-foreground transition-colors text-sm px-2 py-1 rounded-md hover:bg-accent"
+            title="Voltar ao painel de funis"
+          >
+            <ChevronLeft className="h-4 w-4" />
+            <span className="hidden sm:inline">Funis</span>
+          </button>
+          <div className="w-px h-4 bg-border" />
+          <span
+            className="font-semibold text-sm truncate max-w-[160px]"
+            title={funnel.name}
+          >
+            {funnel.name}
+          </span>
         </div>
+
+        {/* Center: tabs */}
         <div className="flex items-center gap-1">
           <TabButton id="builder" icon={LayoutPanelLeft} label={t.tabs.builder} />
           <TabButton id="flow" icon={Workflow} label={t.tabs.flow} />
@@ -77,6 +109,8 @@ export function BuilderApp() {
           <TabButton id="leads" icon={Users} label={t.tabs.leads} />
           <TabButton id="settings" icon={SettingsIcon} label="Config" />
         </div>
+
+        {/* Right: actions */}
         <div className="flex items-center gap-2">
           {/* Clone funnel button */}
           <Button
@@ -100,21 +134,26 @@ export function BuilderApp() {
           </Button>
           <Button
             size="sm"
-            className="bg-foreground text-background hover:bg-foreground/90"
-            onClick={() => {
-              setSavedFlash(true);
-              setTimeout(() => setSavedFlash(false), 1500);
-            }}
+            className="bg-foreground text-background hover:bg-foreground/90 flex items-center gap-1.5"
+            onClick={handleSave}
           >
             {savedFlash ? (
               <>
-                <Check className="h-4 w-4 mr-1" /> {t.saved}
+                <Check className="h-4 w-4" /> {t.saved}
               </>
             ) : (
-              t.save
+              <>
+                <Save className="h-4 w-4" /> {t.save}
+              </>
             )}
           </Button>
-          <Button variant="ghost" size="sm" onClick={logout} title="Sair da plataforma" className="text-zinc-500 hover:text-red-600">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={logout}
+            title="Sair da plataforma"
+            className="text-zinc-500 hover:text-red-600"
+          >
             <LogOut className="h-4 w-4" />
           </Button>
         </div>

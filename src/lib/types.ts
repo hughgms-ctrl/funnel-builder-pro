@@ -44,6 +44,8 @@ export interface PlanItem {
   popular?: boolean;
   popularText?: string;
   nextStepId?: string;
+  href?: string;          // Payment link for this specific plan
+  openInNewTab?: boolean; // Open payment link in new tab
 }
 
 export interface ComponentData {
@@ -59,6 +61,8 @@ export interface ComponentData {
   // button
   buttonText?: string;
   nextStepId?: string;
+  href?: string;          // External link URL (overrides nextStep navigation)
+  openInNewTab?: boolean; // Open link in new tab
   // capture
   fields?: CaptureField[];
   // image
@@ -113,6 +117,7 @@ export interface Step {
   showLogo: boolean;
   showProgress: boolean;
   showBack: boolean;
+  isSaleStep?: boolean; // Marks this step as a conversion/sale step
 }
 
 export interface Funnel {
@@ -124,8 +129,9 @@ export interface Funnel {
   fontFamily: string;
   steps: Step[];
   // Publication & Integration
-  saleUrl?: string;          // Link do produto/checkout
+  saleUrl?: string;          // Link do produto/checkout (fallback)
   leadWebhookUrl?: string;   // Webhook para envio automático de leads
+  saleWebhookUrl?: string;   // Webhook para vendas/conversões
   metaPixelId?: string;      // ID do Pixel da Meta (Facebook)
   googleTagId?: string;      // Google Tag Manager ID
   tiktokPixelId?: string;    // TikTok Pixel ID
