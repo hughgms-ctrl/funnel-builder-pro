@@ -5,7 +5,16 @@ import type { ComponentData, ComponentType, Funnel, Step } from "./types";
 const uid = () => Math.random().toString(36).slice(2, 10);
 
 const componentDefaults = (type: ComponentType): ComponentData => {
-  const base: ComponentData = { id: uid(), type };
+  const base: ComponentData = { 
+    id: uid(), 
+    type,
+    aesthetic: "simple",
+    borders: "medium",
+    width: 100,
+    animation: "none",
+    fixedFooter: false,
+    displayRule: "",
+  };
   switch (type) {
     case "alert":
       return { ...base, text: "Mensagem importante", variant: "info" };
@@ -33,8 +42,8 @@ const componentDefaults = (type: ComponentType): ComponentData => {
         ...base,
         title: "Quase lá!",
         fields: [
-          { id: uid(), type: "text", label: "Nome", required: true },
-          { id: uid(), type: "email", label: "E-mail", required: true },
+          { id: uid(), type: "text", label: "Nome", required: true, idName: "nome" },
+          { id: uid(), type: "email", label: "E-mail", required: true, idName: "email" },
         ],
         buttonText: "Enviar",
       };
@@ -63,11 +72,12 @@ const componentDefaults = (type: ComponentType): ComponentData => {
         subtitle: "Utilizamos sua idade apenas para personalizar seu plano",
         columns: 2,
         options: [
-          { id: uid(), label: "18-29" },
-          { id: uid(), label: "29-39" },
-          { id: uid(), label: "39-49" },
-          { id: uid(), label: "50+" },
+          { id: uid(), label: "18-29", score: 10 },
+          { id: uid(), label: "29-39", score: 20 },
+          { id: uid(), label: "39-49", score: 30 },
+          { id: uid(), label: "50+", score: 40 },
         ],
+        idName: "idade",
       };
     case "price":
       return {
@@ -82,6 +92,50 @@ const componentDefaults = (type: ComponentType): ComponentData => {
       return { ...base, text: "Digite seu texto aqui" };
     case "timer":
       return { ...base, seconds: 300, text: "Oferta expira em" };
+    case "compare":
+      return {
+        ...base,
+        beforeImageUrl: "",
+        beforeLabel: "Antes",
+        afterImageUrl: "",
+        afterLabel: "Seu objetivo",
+      };
+    case "video":
+      return {
+        ...base,
+        videoUrl: "",
+      };
+    case "plans":
+      return {
+        ...base,
+        title: "O seu plano personalizado está pronto!",
+        plans: [
+          {
+            id: uid(),
+            name: "Plano De 7 Dias",
+            originalPrice: "R$ 99,90",
+            promoPrice: "R$ 49,90",
+            period: "à vista",
+          },
+          {
+            id: uid(),
+            name: "Plano De 1 Mês",
+            originalPrice: "R$ 199,90",
+            promoPrice: "R$ 99,90",
+            period: "à vista",
+            popular: true,
+            popularText: "★ MAIS POPULAR ★",
+          },
+          {
+            id: uid(),
+            name: "Plano De 3 Meses",
+            originalPrice: "R$ 299,90",
+            promoPrice: "R$ 149,90",
+            period: "à vista",
+          },
+        ],
+        idName: "plano_selecionado",
+      };
   }
 };
 
@@ -139,11 +193,23 @@ export interface Lead {
   answers: Record<string, unknown>;
 }
 
+export interface ApiKeys {
+  openai?: string;
+  anthropic?: string;
+}
+
+export interface SupabaseConfig {
+  url?: string;
+  anonKey?: string;
+}
+
 interface FunnelState {
   funnel: Funnel;
   selectedStepId: string | null;
   selectedComponentId: string | null;
   leads: Lead[];
+  apiKeys: ApiKeys;
+  supabaseConfig: SupabaseConfig;
   // actions
   setFunnel: (f: Funnel) => void;
   updateFunnel: (patch: Partial<Funnel>) => void;
@@ -162,6 +228,8 @@ interface FunnelState {
   moveComponent: (stepId: string, from: number, to: number) => void;
   addLead: (lead: Lead) => void;
   clearLeads: () => void;
+  setApiKeys: (keys: Partial<ApiKeys>) => void;
+  setSupabaseConfig: (cfg: Partial<SupabaseConfig>) => void;
 }
 
 export const useFunnelStore = create<FunnelState>()(
@@ -171,6 +239,8 @@ export const useFunnelStore = create<FunnelState>()(
       selectedStepId: null,
       selectedComponentId: null,
       leads: [],
+      apiKeys: {},
+      supabaseConfig: {},
       setFunnel: (funnel) => set({ funnel }),
       updateFunnel: (patch) => set((s) => ({ funnel: { ...s.funnel, ...patch } })),
       selectStep: (id) => set({ selectedStepId: id, selectedComponentId: null }),
@@ -305,9 +375,13 @@ export const useFunnelStore = create<FunnelState>()(
         })),
       addLead: (lead) => set((s) => ({ leads: [lead, ...s.leads] })),
       clearLeads: () => set({ leads: [] }),
+      setApiKeys: (keys) => set((s) => ({ apiKeys: { ...s.apiKeys, ...keys } })),
+      setSupabaseConfig: (cfg) => set((s) => ({ supabaseConfig: { ...s.supabaseConfig, ...cfg } })),
     }),
     { name: "quizfunnel-state" },
   ),
 );
 
 export { componentDefaults };
+
+

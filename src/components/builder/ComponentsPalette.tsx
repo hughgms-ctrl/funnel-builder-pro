@@ -17,6 +17,9 @@ import {
   DollarSign,
   Type,
   Timer,
+  Split,
+  Play,
+  CreditCard,
 } from "lucide-react";
 
 const items: { type: ComponentType; icon: React.ComponentType<{ className?: string }> }[] = [
@@ -35,6 +38,9 @@ const items: { type: ComponentType; icon: React.ComponentType<{ className?: stri
   { type: "price", icon: DollarSign },
   { type: "text", icon: Type },
   { type: "timer", icon: Timer },
+  { type: "compare", icon: Split },
+  { type: "video", icon: Play },
+  { type: "plans", icon: CreditCard },
 ];
 
 export function ComponentsPalette() {

@@ -86,6 +86,9 @@ const dict = {
       price: "Preço",
       text: "Texto",
       timer: "Timer",
+      compare: "Antes/Depois",
+      video: "Vídeo Resposta",
+      plans: "Planos de Preço",
     },
   },
   en: {
@@ -170,6 +173,9 @@ const dict = {
       price: "Price",
       text: "Text",
       timer: "Timer",
+      compare: "Before/After",
+      video: "Video Answer",
+      plans: "Price Plans",
     },
   },
 } as const;

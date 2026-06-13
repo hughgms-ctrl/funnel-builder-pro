@@ -8,8 +8,11 @@ import { PropertiesPanel } from "@/components/builder/PropertiesPanel";
 import { DesignPanel } from "@/components/builder/DesignPanel";
 import { LeadsPanel } from "@/components/builder/LeadsPanel";
 import { FlowPanel } from "@/components/builder/FlowPanel";
+import { SettingsPanel } from "@/components/builder/SettingsPanel";
+import { FunnelClonerModal } from "@/components/builder/FunnelClonerModal";
 import { QuizPreview } from "@/components/builder/QuizPreview";
 import { Button } from "@/components/ui/button";
+import { useAuth } from "@/lib/auth";
 import {
   LayoutPanelLeft,
   Workflow,
@@ -18,18 +21,23 @@ import {
   Settings as SettingsIcon,
   Play,
   Check,
+  Copy,
+  Sparkles,
+  LogOut,
 } from "lucide-react";
 
-type Tab = "builder" | "flow" | "design" | "leads";
+type Tab = "builder" | "flow" | "design" | "leads" | "settings";
 
 export function BuilderApp() {
   const t = useT();
   const lang = useLangStore((s) => s.lang);
   const setLang = useLangStore((s) => s.setLang);
   const funnel = useFunnelStore((s) => s.funnel);
+  const { logout } = useAuth();
   const [tab, setTab] = useState<Tab>("builder");
   const [preview, setPreview] = useState(false);
   const [savedFlash, setSavedFlash] = useState(false);
+  const [clonerOpen, setClonerOpen] = useState(false);
 
   const TabButton = ({
     id,
@@ -67,17 +75,25 @@ export function BuilderApp() {
           <TabButton id="flow" icon={Workflow} label={t.tabs.flow} />
           <TabButton id="design" icon={Palette} label={t.tabs.design} />
           <TabButton id="leads" icon={Users} label={t.tabs.leads} />
+          <TabButton id="settings" icon={SettingsIcon} label="Config" />
         </div>
         <div className="flex items-center gap-2">
+          {/* Clone funnel button */}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setClonerOpen(true)}
+            className="flex items-center gap-1.5 text-violet-600 border-violet-300 hover:bg-violet-50"
+          >
+            <Sparkles className="h-3.5 w-3.5" />
+            Clonar Funil
+          </Button>
+
           <button
             onClick={() => setLang(lang === "pt" ? "en" : "pt")}
             className="text-xs px-2 py-1 rounded border hover:bg-accent uppercase"
           >
             {lang}
-          </button>
-          <button className="text-sm text-muted-foreground hover:text-foreground flex items-center gap-1 px-2">
-            <SettingsIcon className="h-4 w-4" />
-            {t.settings}
           </button>
           <Button variant="ghost" size="sm" onClick={() => setPreview(true)}>
             <Play className="h-4 w-4" />
@@ -98,15 +114,20 @@ export function BuilderApp() {
               t.save
             )}
           </Button>
+          <Button variant="ghost" size="sm" onClick={logout} title="Sair da plataforma" className="text-zinc-500 hover:text-red-600">
+            <LogOut className="h-4 w-4" />
+          </Button>
         </div>
       </div>
 
       {/* Body */}
       <div className="flex-1 flex overflow-hidden">
         {/* Left rail: Steps */}
-        <div className="w-48 border-r flex flex-col shrink-0">
-          <StepsList />
-        </div>
+        {(tab === "builder" || tab === "flow") && (
+          <div className="w-48 border-r flex flex-col shrink-0">
+            <StepsList />
+          </div>
+        )}
 
         {/* Components palette (only on builder tab) */}
         {tab === "builder" && (
@@ -121,6 +142,7 @@ export function BuilderApp() {
           {tab === "flow" && <FlowPanel />}
           {tab === "design" && <DesignPanel />}
           {tab === "leads" && <LeadsPanel />}
+          {tab === "settings" && <SettingsPanel />}
         </div>
 
         {/* Right: Properties (only on builder tab) */}
@@ -133,6 +155,9 @@ export function BuilderApp() {
           </div>
         )}
       </div>
+
+      {/* Cloner Modal */}
+      <FunnelClonerModal open={clonerOpen} onClose={() => setClonerOpen(false)} />
     </div>
   );
 }

@@ -142,3 +142,18 @@
     color: var(--color-foreground);
   }
 }
+
+@keyframes inlead-pulse {
+  0%, 100% {
+    transform: scale(1);
+    filter: brightness(1);
+  }
+  50% {
+    transform: scale(1.025);
+    filter: brightness(1.08);
+  }
+}
+
+.animate-inlead-pulse {
+  animation: inlead-pulse 2s infinite ease-in-out;
+}
