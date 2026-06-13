@@ -29,9 +29,9 @@ interface ScrapedStep {
     allText: string;
     title: string;
     subtitle: string;
-    options: Array<{ text: string; hasImage: boolean; imageUrl: string }>;
+    options: Array<{ text: string; hasImage: boolean; imageUrl: string; href?: string }>;
     inputs: Array<{ type: string; placeholder: string; name: string }>;
-    buttons: string[];
+    buttons: Array<string | { text: string; href?: string }>;
     images: Array<{ src: string; alt: string }>;
     pageType: "intro" | "options" | "capture" | "loading" | "offer" | "result" | "unknown";
     primaryColor: string;
@@ -96,9 +96,9 @@ async function analyzeStepWithVision(
 Return a JSON array of components. Each component is one of these types:
 - { "type": "text", "text": "..." }
 - { "type": "image", "imageUrl": "url or empty", "alt": "..." }
-- { "type": "options", "title": "...", "subtitle": "...", "columns": 1 or 2, "options": [{ "id": "rand8", "label": "...", "image": "imageUrl or empty" }] }
+- { "type": "options", "title": "...", "subtitle": "...", "columns": 1 or 2, "options": [{ "id": "rand8", "label": "...", "image": "imageUrl or empty", "href": "checkout/link if this option button redirects" }] }
 - { "type": "capture", "title": "...", "fields": [{ "id": "rand8", "type": "text|email|tel", "label": "...", "required": true }], "buttonText": "..." }
-- { "type": "button", "buttonText": "..." }
+- { "type": "button", "buttonText": "...", "href": "external link only when the CTA button redirects" }
 - { "type": "loading", "text": "...", "loadingDuration": 3 }
 - { "type": "price", "title": "...", "price": "R$ XX", "pricePeriod": "/único", "priceFeatures": ["..."], "buttonText": "..." }
 - { "type": "plans", "title": "...", "plans": [{ "id": "rand8", "name": "...", "originalPrice": "R$ XX", "promoPrice": "R$ XX", "period": "/mês", "popular": false }] }
@@ -109,6 +109,8 @@ Return a JSON array of components. Each component is one of these types:
 RULES:
 - Extract ALL text VERBATIM from the image (Brazilian Portuguese)
 - For options: list EVERY visible option label
+- Preserve image URLs that are inside option buttons/cards. Put those URLs in option.image, never in a separate linked image component.
+- If a visible CTA/option redirects to a page/checkout, put the URL in button.href or option.href. Do NOT attach links to image components.
 - For capture forms: list ALL visible fields
 - For prices: extract EXACT price values
 - Generate 8-char random alphanumeric ids for id fields
@@ -124,6 +126,8 @@ Context: ${funnelContext}
 Page type detected: ${knownContent.pageType}
 Known title: "${knownContent.title}"
 Known options count: ${knownContent.options.length}
+Known options with images/links: ${JSON.stringify(knownContent.options).slice(0, 1200)}
+Known buttons/links: ${JSON.stringify(knownContent.buttons).slice(0, 800)}
 Known text: "${knownContent.allText.slice(0, 800)}"
 
 Extract ALL components you see in this screenshot. Be extremely accurate and verbose.`,
@@ -208,11 +212,12 @@ async function analyzeStepWithClaude(
 Page type: ${knownContent.pageType}. Known title: "${knownContent.title}". Options found: ${knownContent.options.length}.
 
 Return a JSON array of components. Types: text, image, options, capture, button, loading, price, plans, testimonials, timer, alert.
-- options: { type:"options", title, subtitle, columns(1-2), options:[{id,label,image}] }
+- options: { type:"options", title, subtitle, columns(1-2), options:[{id,label,image,href}] }
 - capture: { type:"capture", title, fields:[{id,type,label,required}], buttonText }
-- price: { type:"price", title, price, pricePeriod, priceFeatures:[], buttonText }
+- button: { type:"button", buttonText, href } where href is only for CTA redirects
+- price: { type:"price", title, price, pricePeriod, priceFeatures:[], buttonText, href }
 - plans: { type:"plans", title, plans:[{id,name,originalPrice,promoPrice,period,popular}] }
-Use 8-char random alphanumeric ids. Extract ALL text VERBATIM in Brazilian Portuguese. Return ONLY valid JSON array.`,
+Use 8-char random alphanumeric ids. Extract ALL text VERBATIM in Brazilian Portuguese. Preserve option button images in option.image, and put redirect URLs on buttons/options, never on image components. Return ONLY valid JSON array.`,
             },
           ],
         },
@@ -255,6 +260,53 @@ function inferStepTitle(step: ScrapedStep, index: number): string {
     case "result": return "Seu Resultado";
     default: return `Etapa ${index + 1}`;
   }
+}
+
+function getButtonText(button: string | { text: string; href?: string }): string {
+  return typeof button === "string" ? button : button.text;
+}
+
+function getButtonHref(button: string | { text: string; href?: string }): string | undefined {
+  return typeof button === "string" ? undefined : button.href;
+}
+
+function normalizeScrapedComponents(components: ComponentData[], step: ScrapedStep): ComponentData[] {
+  const firstHref = step.content.buttons.map(getButtonHref).find(Boolean);
+  let buttonIndex = 0;
+
+  return components.map((component) => {
+    if (component.type === "image") {
+      return { ...component, href: undefined, nextStepId: component.nextStepId };
+    }
+
+    if (component.type === "button" || component.type === "price") {
+      const button = step.content.buttons[buttonIndex++];
+      return {
+        ...component,
+        buttonText: component.buttonText || getButtonText(button || "") || "Continuar",
+        href: component.href || getButtonHref(button) || firstHref,
+        openInNewTab: component.openInNewTab ?? false,
+      };
+    }
+
+    if (component.type === "options") {
+      const options = (component.options || []).map((option) => {
+        const scraped = step.content.options.find((item) => item.text === option.label)
+          || step.content.options.find((item) => item.text.includes(option.label) || option.label.includes(item.text));
+
+        return {
+          ...option,
+          image: option.image || scraped?.imageUrl || undefined,
+          href: option.href || scraped?.href || undefined,
+          openInNewTab: option.openInNewTab ?? false,
+        };
+      });
+
+      return { ...component, options };
+    }
+
+    return component;
+  });
 }
 
 // ─── Generate DALL-E image ────────────────────────────────────────────────────
@@ -402,6 +454,7 @@ export async function cloneFunnel(
       } else {
         components = await analyzeStepWithClaude(apiKeys.anthropic!, step, funnelContext);
       }
+      components = normalizeScrapedComponents(components, step);
 
       const isSaleStep = step.content.pageType === "offer";
 
@@ -461,11 +514,13 @@ export async function cloneFunnel(
       s.components.filter((c) => c.type === "image" && !c.imageUrl)
     );
 
-    // 4b. Option items without images (for image-option cards)
+    // 4b. Option items that looked like image cards but whose image could not be extracted
     const emptyOptionImages = funnel.steps.flatMap((s) =>
       s.components
         .filter((c) => c.type === "options")
-        .flatMap((c) => (c.options || []).filter((o: any) => !o.image))
+        .flatMap((c) => (c.options || []).filter((o: any) => !o.image && scrapedSteps.some((step) =>
+          step.content.options.some((scraped) => scraped.hasImage && (scraped.text === o.label || scraped.text.includes(o.label) || o.label.includes(scraped.text)))
+        )))
     );
 
     const totalImages = Math.min(emptyImages.length + emptyOptionImages.length, 6);

@@ -142,6 +142,7 @@ module.exports = async ({ page, context }) => {
             text: el.innerText?.trim() || '',
             hasImage: el.querySelector('img') !== null,
             imageUrl: el.querySelector('img')?.src || '',
+            href: el.closest('a[href]')?.href || el.querySelector('a[href]')?.href || '',
             selector: sel,
           })).filter(o => o.text.length > 0 && o.text.length < 200);
           if (options.length > 0) break;
@@ -160,7 +161,10 @@ module.exports = async ({ page, context }) => {
       // Buttons
       const buttons = Array.from(body.querySelectorAll('button:not([disabled])'))
         .filter(el => el.offsetParent !== null && el.innerText?.trim().length > 0 && el.innerText?.trim().length < 100)
-        .map(el => el.innerText?.trim());
+        .map(el => ({
+          text: el.innerText?.trim(),
+          href: el.closest('a[href]')?.href || el.querySelector('a[href]')?.href || '',
+        }));
 
       // Images
       const images = Array.from(body.querySelectorAll('img'))

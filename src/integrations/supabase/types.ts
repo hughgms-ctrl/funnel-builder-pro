@@ -14,7 +14,93 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      clone_jobs: {
+        Row: {
+          created_at: string
+          error: string | null
+          id: string
+          message: string | null
+          progress: number
+          result: Json | null
+          screenshots: Json
+          source_url: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          error?: string | null
+          id?: string
+          message?: string | null
+          progress?: number
+          result?: Json | null
+          screenshots?: Json
+          source_url: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          error?: string | null
+          id?: string
+          message?: string | null
+          progress?: number
+          result?: Json | null
+          screenshots?: Json
+          source_url?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      funnels: {
+        Row: {
+          created_at: string
+          data: Json
+          id: string
+          name: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          data: Json
+          id: string
+          name: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          data?: Json
+          id?: string
+          name?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      leads: {
+        Row: {
+          answers: Json
+          created_at: string
+          funnel_id: string
+          id: string
+          updated_at: string
+        }
+        Insert: {
+          answers?: Json
+          created_at?: string
+          funnel_id: string
+          id: string
+          updated_at?: string
+        }
+        Update: {
+          answers?: Json
+          created_at?: string
+          funnel_id?: string
+          id?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never

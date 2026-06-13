@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import type { ComponentData, OptionItem, CaptureField } from "@/lib/types";
-import { Trash2, Sparkles, Loader2, Link2, ExternalLink } from "lucide-react";
+import { Trash2, Sparkles, Loader2, Upload, X } from "lucide-react";
 import { generateImage } from "@/lib/api/cloner";
 import { toast } from "sonner";
 
@@ -94,6 +94,48 @@ function AIImageGenerator({
         </div>
       )}
     </div>
+  );
+}
+
+function ImageUploader({ onImageUploaded }: { onImageUploaded: (url: string) => void }) {
+  const [uploading, setUploading] = useState(false);
+
+  const handleUpload = (file?: File) => {
+    if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      toast.error("Selecione um arquivo de imagem válido.");
+      return;
+    }
+    if (file.size > 4 * 1024 * 1024) {
+      toast.error("A imagem precisa ter até 4MB para ficar salva no funil.");
+      return;
+    }
+
+    setUploading(true);
+    const reader = new FileReader();
+    reader.onload = () => {
+      onImageUploaded(String(reader.result));
+      toast.success("Imagem enviada com sucesso!");
+      setUploading(false);
+    };
+    reader.onerror = () => {
+      toast.error("Não foi possível enviar a imagem.");
+      setUploading(false);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  return (
+    <label className="flex h-9 w-full cursor-pointer items-center justify-center gap-2 rounded-md border border-dashed border-zinc-700 bg-zinc-900/40 text-xs font-medium text-zinc-200 transition hover:bg-zinc-800/70">
+      {uploading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />}
+      {uploading ? "Enviando..." : "Subir imagem do computador"}
+      <input
+        type="file"
+        accept="image/*"
+        className="sr-only"
+        onChange={(event) => handleUpload(event.target.files?.[0])}
+      />
+    </label>
   );
 }
 
@@ -260,10 +302,16 @@ function ComponentEditor({
           <>
             <Field label={t.imageUrl}>
               {data.imageUrl && (
-                <img src={data.imageUrl} alt={data.alt} className="w-full h-32 object-cover rounded-lg border mb-2" />
+                <div className="relative mb-2">
+                  <img src={data.imageUrl} alt={data.alt} className="w-full h-32 object-cover rounded-lg border" />
+                  <Button type="button" size="icon" variant="secondary" className="absolute right-2 top-2 h-7 w-7" onClick={() => onChange({ imageUrl: "" })}>
+                    <X className="h-3.5 w-3.5" />
+                  </Button>
+                </div>
               )}
               <Input value={data.imageUrl || ""} onChange={(e) => onChange({ imageUrl: e.target.value })} />
             </Field>
+            <ImageUploader onImageUploaded={(url) => onChange({ imageUrl: url })} />
             <AIImageGenerator
               initialPrompt={data.alt || ""}
               onImageGenerated={(url) => onChange({ imageUrl: url })}
@@ -373,7 +421,22 @@ function ComponentEditor({
                   <div className="space-y-1.5 border-t pt-2 mt-1">
                     <Label className="text-[10px] text-muted-foreground flex items-center gap-1">🖼️ Imagem da Opção (Opcional)</Label>
                     {opt.image && (
-                      <img src={opt.image} alt={opt.label} className="w-full h-24 object-cover rounded-lg border animate-in fade-in" />
+                      <div className="relative">
+                        <img src={opt.image} alt={opt.label} className="w-full h-24 object-cover rounded-lg border animate-in fade-in" />
+                        <Button
+                          type="button"
+                          size="icon"
+                          variant="secondary"
+                          className="absolute right-2 top-2 h-7 w-7"
+                          onClick={() => {
+                            const arr = [...(data.options || [])];
+                            arr[i] = { ...opt, image: "" };
+                            onChange({ options: arr });
+                          }}
+                        >
+                          <X className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
                     )}
                     <Input
                       placeholder="https://... (URL da imagem)"
@@ -384,6 +447,13 @@ function ComponentEditor({
                         onChange({ options: arr });
                       }}
                       className="text-xs"
+                    />
+                    <ImageUploader
+                      onImageUploaded={(url) => {
+                        const arr = [...(data.options || [])];
+                        arr[i] = { ...opt, image: url };
+                        onChange({ options: arr });
+                      }}
                     />
                     <AIImageGenerator
                       initialPrompt={`Foto representando a opção: ${opt.label}. Fundo limpo, profissional, sem texto.`}
