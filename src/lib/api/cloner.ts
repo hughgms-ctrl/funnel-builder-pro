@@ -454,6 +454,7 @@ export async function cloneFunnel(
       } else {
         components = await analyzeStepWithClaude(apiKeys.anthropic!, step, funnelContext);
       }
+      components = normalizeScrapedComponents(components, step);
 
       const isSaleStep = step.content.pageType === "offer";
 
@@ -513,11 +514,13 @@ export async function cloneFunnel(
       s.components.filter((c) => c.type === "image" && !c.imageUrl)
     );
 
-    // 4b. Option items without images (for image-option cards)
+    // 4b. Option items that looked like image cards but whose image could not be extracted
     const emptyOptionImages = funnel.steps.flatMap((s) =>
       s.components
         .filter((c) => c.type === "options")
-        .flatMap((c) => (c.options || []).filter((o: any) => !o.image))
+        .flatMap((c) => (c.options || []).filter((o: any) => !o.image && scrapedSteps.some((step) =>
+          step.content.options.some((scraped) => scraped.hasImage && (scraped.text === o.label || scraped.text.includes(o.label) || o.label.includes(scraped.text)))
+        )))
     );
 
     const totalImages = Math.min(emptyImages.length + emptyOptionImages.length, 6);
