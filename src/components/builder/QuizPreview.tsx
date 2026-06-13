@@ -333,7 +333,7 @@ export function QuizPreview({ funnel, startStepId, onExit, embedded }: Props) {
   const footerButton = visibleComponents.find((c) => c.type === "button" && c.fixedFooter);
 
   // Agrupar componentes visíveis adjacentes de 50% de largura
-  const renderedElements: JSX.Element[] = [];
+  const renderedElements: any[] = [];
   let tempRow: ComponentData[] = [];
 
   const RenderComponentWrapper = ({ c }: { c: ComponentData }) => (
@@ -681,7 +681,14 @@ function RenderComponent({ data, funnel, variables, onAnswer, onSubmitCapture, f
               return (
                 <button
                   key={opt.id}
-                  onClick={() => onAnswer(opt.label, opt.nextStepId, opt.score, opt.idName)}
+                  onClick={() => {
+                    if (opt.href) {
+                      fireLead(variables, true);
+                      window.open(opt.href, opt.openInNewTab !== false ? '_blank' : '_self');
+                    } else {
+                      onAnswer(opt.label, opt.nextStepId, opt.score, opt.idName);
+                    }
+                  }}
                   className={`overflow-hidden flex flex-col items-stretch transition hover:scale-[1.02] hover:shadow-md cursor-pointer ${optStyles}`}
                   style={{ borderColor: primary }}
                 >
@@ -737,7 +744,7 @@ function RenderComponent({ data, funnel, variables, onAnswer, onSubmitCapture, f
     case "timer":
       return (
         <div className={`p-4 ${appliedStyles}`}>
-          <TimerView seconds={data.seconds || 60} label={parseTemplateText(data.text, variables)} color={primary} />
+          <TimerView seconds={data.seconds || 60} label={parseTemplateText(data.text || "", variables)} color={primary} />
         </div>
       );
     case "charts":

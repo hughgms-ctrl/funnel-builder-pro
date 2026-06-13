@@ -256,7 +256,7 @@ function inferStepTitle(step: ScrapedStep, index: number): string {
 }
 
 // ─── Generate DALL-E image ────────────────────────────────────────────────────
-async function generateImage(apiKey: string, prompt: string): Promise<string> {
+export async function generateImage(apiKey: string, prompt: string): Promise<string> {
   const res = await fetch("https://api.openai.com/v1/images/generations", {
     method: "POST",
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
@@ -283,7 +283,6 @@ function normalizeFunnel(funnel: Partial<Funnel>): Funnel {
       showBack: s.showBack ?? false,
       isSaleStep: s.isSaleStep ?? false,
       components: (s.components || []).map((c) => ({
-        id: c.id || uid(),
         aesthetic: "simple",
         borders: "medium",
         width: 100,
@@ -291,6 +290,7 @@ function normalizeFunnel(funnel: Partial<Funnel>): Funnel {
         fixedFooter: false,
         displayRule: "",
         ...c,
+        id: c.id || uid(),
       })) as ComponentData[],
     })) as Step[],
   };

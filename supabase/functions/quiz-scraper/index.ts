@@ -203,10 +203,10 @@ module.exports = async ({ page, context }) => {
     // Wait for transition/animation
     await page.waitForTimeout(2000);
 
-    // Detect if page changed (compare titles)
-    const newTitle = await page.evaluate(() => document.querySelector('h1, h2')?.innerText?.trim() || document.title);
-    if (steps.length > 1 && newTitle === steps[steps.length - 2]?.content?.title) {
-      break; // No change — quiz ended
+    // Detect if page changed (compare body text instead of fragile titles)
+    const newText = await page.evaluate(() => document.body.innerText.trim().slice(0, 1000));
+    if (steps.length > 0 && newText === steps[steps.length - 1]?.content?.allText?.slice(0, 1000)) {
+      break; // No change in page content — quiz ended or click did not work
     }
   }
 

@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useFunnelStore } from "@/lib/store";
 import { useT } from "@/lib/i18n";
 import { Input } from "@/components/ui/input";
@@ -8,9 +9,94 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import type { ComponentData, OptionItem, CaptureField } from "@/lib/types";
-import { Trash2 } from "lucide-react";
+import { Trash2, Sparkles, Loader2, Link2, ExternalLink } from "lucide-react";
+import { generateImage } from "@/lib/api/cloner";
+import { toast } from "sonner";
 
 const uid = () => Math.random().toString(36).slice(2, 10);
+
+function AIImageGenerator({
+  initialPrompt = "",
+  onImageGenerated,
+}: {
+  initialPrompt?: string;
+  onImageGenerated: (url: string) => void;
+}) {
+  const [prompt, setPrompt] = useState(initialPrompt);
+  const [generating, setGenerating] = useState(false);
+  const apiKeys = useFunnelStore((s) => s.apiKeys);
+  const openaiKey = apiKeys?.openai;
+
+  const handleGenerate = async () => {
+    if (!openaiKey) {
+      toast.error("Por favor, configure sua chave da API OpenAI nas Configurações primeiro.");
+      return;
+    }
+    if (!prompt.trim()) {
+      toast.error("Digite um prompt descrevendo a imagem desejada.");
+      return;
+    }
+
+    setGenerating(true);
+    try {
+      const url = await generateImage(openaiKey, prompt.trim());
+      if (url) {
+        onImageGenerated(url);
+        toast.success("Imagem gerada com sucesso!");
+      } else {
+        toast.error("Não foi possível obter a URL da imagem gerada.");
+      }
+    } catch (err: any) {
+      toast.error(`Erro ao gerar imagem: ${err.message || err}`);
+    } finally {
+      setGenerating(false);
+    }
+  };
+
+  return (
+    <div className="space-y-2 border border-dashed border-violet-500/30 rounded-lg p-2.5 bg-violet-500/5 mt-1.5">
+      <div className="flex items-center justify-between">
+        <Label className="text-[10px] font-semibold text-violet-400 flex items-center gap-1">
+          <Sparkles className="h-3 w-3 text-violet-400 animate-pulse" /> Gerar Imagem com IA (DALL-E 3)
+        </Label>
+      </div>
+      {!openaiKey ? (
+        <p className="text-[10px] text-amber-500 leading-normal">
+          ⚠️ Configure sua chave OpenAI nas Configurações do painel para habilitar a geração de imagem.
+        </p>
+      ) : (
+        <div className="space-y-2">
+          <Textarea
+            placeholder="Prompt (ex: Foto de um bebê sorrindo, iluminação natural, estúdio)"
+            value={prompt}
+            onChange={(e) => setPrompt(e.target.value)}
+            className="text-xs min-h-[50px] bg-zinc-900/40 border-zinc-800 focus-visible:ring-violet-500 text-zinc-100"
+          />
+          <Button
+            type="button"
+            size="sm"
+            onClick={handleGenerate}
+            disabled={generating}
+            className="w-full bg-gradient-to-r from-violet-600 to-pink-600 hover:from-violet-700 hover:to-pink-700 text-white text-[11px] h-8 font-medium flex items-center justify-center gap-1.5 cursor-pointer"
+          >
+            {generating ? (
+              <>
+                <Loader2 className="h-3 w-3 animate-spin" />
+                Gerando Imagem...
+              </>
+            ) : (
+              <>
+                <Sparkles className="h-3 w-3" />
+                Criar Imagem
+              </>
+            )}
+          </Button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 
 export function PropertiesPanel() {
   const t = useT();
@@ -173,8 +259,15 @@ function ComponentEditor({
         return (
           <>
             <Field label={t.imageUrl}>
+              {data.imageUrl && (
+                <img src={data.imageUrl} alt={data.alt} className="w-full h-32 object-cover rounded-lg border mb-2" />
+              )}
               <Input value={data.imageUrl || ""} onChange={(e) => onChange({ imageUrl: e.target.value })} />
             </Field>
+            <AIImageGenerator
+              initialPrompt={data.alt || ""}
+              onImageGenerated={(url) => onChange({ imageUrl: url })}
+            />
             <Field label="Alt">
               <Input value={data.alt || ""} onChange={(e) => onChange({ alt: e.target.value })} />
             </Field>
@@ -277,10 +370,10 @@ function ComponentEditor({
                     </div>
                   </div>
 
-                  <div className="space-y-1.5">
-                    <Label className="text-[10px] text-muted-foreground flex items-center gap-1">🖼️ Imagem da Opção</Label>
+                  <div className="space-y-1.5 border-t pt-2 mt-1">
+                    <Label className="text-[10px] text-muted-foreground flex items-center gap-1">🖼️ Imagem da Opção (Opcional)</Label>
                     {opt.image && (
-                      <img src={opt.image} alt={opt.label} className="w-full h-24 object-cover rounded-lg border" />
+                      <img src={opt.image} alt={opt.label} className="w-full h-24 object-cover rounded-lg border animate-in fade-in" />
                     )}
                     <Input
                       placeholder="https://... (URL da imagem)"
@@ -290,24 +383,64 @@ function ComponentEditor({
                         arr[i] = { ...opt, image: e.target.value };
                         onChange({ options: arr });
                       }}
+                      className="text-xs"
+                    />
+                    <AIImageGenerator
+                      initialPrompt={`Foto representando a opção: ${opt.label}. Fundo limpo, profissional, sem texto.`}
+                      onImageGenerated={(url) => {
+                        const arr = [...(data.options || [])];
+                        arr[i] = { ...opt, image: url };
+                        onChange({ options: arr });
+                      }}
                     />
                   </div>
-                  <Select
-                    value={opt.nextStepId || "__none"}
-                    onValueChange={(v) => {
-                      const arr = [...(data.options || [])];
-                      arr[i] = { ...opt, nextStepId: v === "__none" ? undefined : v };
-                      onChange({ options: arr });
-                    }}
-                  >
-                    <SelectTrigger><SelectValue placeholder={t.nextStep} /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="__none">{t.none}</SelectItem>
-                      {nextStepOptions.map((s) => (
-                        <SelectItem key={s.id} value={s.id}>{s.title}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+
+                  <div className="space-y-1.5 border-t pt-2 mt-1">
+                    <Label className="text-[10px] text-violet-600 font-semibold flex items-center gap-1">💳 Link de Checkout / Redirecionamento</Label>
+                    <Input
+                      placeholder="https://checkout.com/... (opcional)"
+                      value={opt.href || ""}
+                      onChange={(e) => {
+                        const arr = [...(data.options || [])];
+                        arr[i] = { ...opt, href: e.target.value };
+                        onChange({ options: arr });
+                      }}
+                      className="font-mono text-xs"
+                    />
+                    {opt.href && (
+                      <div className="flex items-center justify-between mt-1.5">
+                        <span className="text-[10px] text-muted-foreground">Abrir em nova aba</span>
+                        <Switch
+                          checked={opt.openInNewTab !== false}
+                          onCheckedChange={(v) => {
+                            const arr = [...(data.options || [])];
+                            arr[i] = { ...opt, openInNewTab: v };
+                            onChange({ options: arr });
+                          }}
+                        />
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="space-y-1 border-t pt-2 mt-1">
+                    <Label className="text-[10px] text-muted-foreground">Próxima Etapa (Se não houver Link de Checkout)</Label>
+                    <Select
+                      value={opt.nextStepId || "__none"}
+                      onValueChange={(v) => {
+                        const arr = [...(data.options || [])];
+                        arr[i] = { ...opt, nextStepId: v === "__none" ? undefined : v };
+                        onChange({ options: arr });
+                      }}
+                    >
+                      <SelectTrigger><SelectValue placeholder={t.nextStep} /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="__none">{t.none}</SelectItem>
+                        {nextStepOptions.map((s) => (
+                          <SelectItem key={s.id} value={s.id}>{s.title}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </div>
               ))}
               <Button

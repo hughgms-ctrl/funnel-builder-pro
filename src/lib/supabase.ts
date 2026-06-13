@@ -4,6 +4,7 @@ import type { Lead } from "./store";
 import { useFunnelStore } from "./store";
 
 let _client: SupabaseClient | null = null;
+let _currentUrl: string | null = null;
 
 export function getSupabaseClient(url?: string, anonKey?: string): SupabaseClient | null {
   const finalUrl = url || import.meta.env.VITE_SUPABASE_URL || useFunnelStore.getState()?.supabaseConfig?.url;
@@ -13,11 +14,12 @@ export function getSupabaseClient(url?: string, anonKey?: string): SupabaseClien
     return null;
   }
 
-  if (_client && _client.supabaseUrl === finalUrl) {
+  if (_client && _currentUrl === finalUrl) {
     return _client;
   }
 
   _client = createClient(finalUrl, finalKey);
+  _currentUrl = finalUrl;
   return _client;
 }
 

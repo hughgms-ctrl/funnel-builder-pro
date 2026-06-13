@@ -1,5 +1,4 @@
 import { useState, useEffect } from "react";
-import { getActiveSupabaseClient } from "./supabase";
 
 export interface User {
   id: string;
@@ -7,119 +6,62 @@ export interface User {
   role: "admin";
 }
 
-// Check if a session exists in localStorage for mock auth
-const MOCK_SESSION_KEY = "quiz_funnel_mock_session";
+const SESSION_KEY = "quiz_funnel_session";
+
+// ─── Credentials (single-admin tool) ─────────────────────────────────────────
+// Login sempre funciona por credenciais locais — não depende do Supabase Auth.
+// O Supabase é usado apenas para armazenamento de dados (funnels, leads).
+const ADMIN_CREDENTIALS: Array<{ email: string; password: string }> = [
+  { email: "hugo-gms@hotmail.com", password: "Hugo@81157087" },
+  { email: "admin@quizfunnel.com", password: "Admin@2025!" },
+];
 
 export function useAuth() {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const client = getActiveSupabaseClient();
-    
-    if (!client) {
-      // Offline/Mock Dev Mode
-      const storedUser = localStorage.getItem(MOCK_SESSION_KEY);
-      if (storedUser) {
-        try {
-          setUser(JSON.parse(storedUser));
-        } catch {
-          setUser(null);
-        }
-      }
-      setLoading(false);
-      return;
-    }
-
-    // Supabase Auth Mode
-    const checkSession = async () => {
+    // Restore session from localStorage
+    const stored = localStorage.getItem(SESSION_KEY);
+    if (stored) {
       try {
-        const { data: { session } } = await client.auth.getSession();
-        if (session?.user) {
-          setUser({
-            id: session.user.id,
-            email: session.user.email || "",
-            role: "admin",
-          });
-        } else {
-          setUser(null);
-        }
-      } catch (err) {
-        console.error("Erro ao carregar sessão do Supabase:", err);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    checkSession();
-
-    const { data: { subscription } } = client.auth.onAuthStateChange((_event, session) => {
-      if (session?.user) {
-        setUser({
-          id: session.user.id,
-          email: session.user.email || "",
-          role: "admin",
-        });
-      } else {
+        setUser(JSON.parse(stored));
+      } catch {
         setUser(null);
       }
-      setLoading(false);
-    });
-
-    return () => {
-      subscription.unsubscribe();
-    };
+    }
+    setLoading(false);
   }, []);
 
-  const login = async (email: string, password: string): Promise<{ success: boolean; error?: string }> => {
-    const client = getActiveSupabaseClient();
-    
-    if (!client) {
-      // Mock login for developer Hugo
-      if (email.toLowerCase() === "hugo-gms@hotmail.com" && password === "Hugo@81157087") {
-        const mockUser: User = {
-          id: "mock-hugo",
-          email: "hugo-gms@hotmail.com",
-          role: "admin",
-        };
-        localStorage.setItem(MOCK_SESSION_KEY, JSON.stringify(mockUser));
-        setUser(mockUser);
-        return { success: true };
-      } else {
-        return { success: false, error: "Credenciais de desenvolvimento incorretas (Use hugo-gms@hotmail.com / Hugo@81157087)" };
-      }
+  const login = async (
+    email: string,
+    password: string,
+  ): Promise<{ success: boolean; error?: string }> => {
+    const match = ADMIN_CREDENTIALS.find(
+      (c) =>
+        c.email.toLowerCase() === email.toLowerCase().trim() &&
+        c.password === password,
+    );
+
+    if (match) {
+      const user: User = {
+        id: `admin-${email.split("@")[0]}`,
+        email: email.toLowerCase().trim(),
+        role: "admin",
+      };
+      localStorage.setItem(SESSION_KEY, JSON.stringify(user));
+      setUser(user);
+      return { success: true };
     }
 
-    // Real Supabase login
-    try {
-      const { data, error } = await client.auth.signInWithPassword({
-        email,
-        password,
-      });
-      if (error) {
-        return { success: false, error: error.message };
-      }
-      if (data.user) {
-        setUser({
-          id: data.user.id,
-          email: data.user.email || "",
-          role: "admin",
-        });
-        return { success: true };
-      }
-      return { success: false, error: "Nenhum usuário retornado." };
-    } catch (err) {
-      return { success: false, error: err instanceof Error ? err.message : "Erro inesperado ao autenticar" };
-    }
+    return {
+      success: false,
+      error: "Email ou senha incorretos. Verifique suas credenciais.",
+    };
   };
 
-  const logout = async () => {
-    const client = getActiveSupabaseClient();
-    if (client) {
-      await client.auth.signOut();
-    } else {
-      localStorage.removeItem(MOCK_SESSION_KEY);
-    }
+  const logout = () => {
+    localStorage.removeItem(SESSION_KEY);
     setUser(null);
   };
 

@@ -25,6 +25,8 @@ export interface OptionItem {
   nextStepId?: string; // conditional branching
   score?: number;      // scoring for this option
   idName?: string;     // optional variable value to store when selected
+  href?: string;       // external redirect / checkout link
+  openInNewTab?: boolean;
 }
 
 export interface CaptureField {
