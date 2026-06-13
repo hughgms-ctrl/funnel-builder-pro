@@ -8,7 +8,7 @@ let _currentUrl: string | null = null;
 
 export function getSupabaseClient(url?: string, anonKey?: string): SupabaseClient | null {
   const finalUrl = url || import.meta.env.VITE_SUPABASE_URL || useFunnelStore.getState()?.supabaseConfig?.url;
-  const finalKey = anonKey || import.meta.env.VITE_SUPABASE_ANON_KEY || useFunnelStore.getState()?.supabaseConfig?.anonKey;
+  const finalKey = anonKey || import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || import.meta.env.VITE_SUPABASE_ANON_KEY || useFunnelStore.getState()?.supabaseConfig?.anonKey;
 
   if (!finalUrl || !finalKey) {
     return null;
@@ -41,7 +41,21 @@ CREATE TABLE IF NOT EXISTS public.leads (
   id TEXT PRIMARY KEY,
   funnel_id TEXT NOT NULL,
   answers JSONB NOT NULL,
-  created_at TIMESTAMPTZ DEFAULT NOW()
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS public.clone_jobs (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  source_url TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'pending',
+  progress INTEGER NOT NULL DEFAULT 0,
+  message TEXT,
+  screenshots JSONB NOT NULL DEFAULT '[]'::jsonb,
+  result JSONB,
+  error TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 `;
 
