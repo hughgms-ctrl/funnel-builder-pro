@@ -45,11 +45,13 @@ async function callQuizScraperEdgeFunction(url: string): Promise<ScrapedStep[]> 
   if (!supabase) throw new Error("Supabase não configurado");
 
   const { data, error } = await supabase.functions.invoke("quiz-scraper", {
-    body: { url },
+    body: { url, maxSteps: 25 },
   });
 
   if (error) throw new Error(`Edge Function error: ${error.message}`);
-  if (!data?.steps?.length) throw new Error("Nenhuma etapa capturada pelo scraper");
+  // Check for function-level error in response body
+  if (data?.error) throw new Error(`Scraper error: ${data.error}`);
+  if (!data?.steps?.length) throw new Error("Nenhuma etapa capturada pelo scraper — verifique a chave BROWSERLESS_API_KEY no Supabase");
 
   return data.steps as ScrapedStep[];
 }

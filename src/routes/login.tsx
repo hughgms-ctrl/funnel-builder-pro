@@ -123,11 +123,7 @@ function LoginPage() {
           </Button>
         </form>
 
-        <div className="text-center">
-          <p className="text-[10px] text-zinc-500">
-            Ambiente de Desenvolvimento: use <code className="text-violet-400 font-mono">hugo-gms@hotmail.com</code> e <code className="text-violet-400 font-mono">Hugo@81157087</code> se não houver Supabase configurado.
-          </p>
-        </div>
+
       </div>
     </div>
   );
