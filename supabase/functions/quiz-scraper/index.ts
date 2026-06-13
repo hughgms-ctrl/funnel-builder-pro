@@ -214,18 +214,34 @@ module.exports = async ({ page, context }) => {
 };
 `;
 
-    const res = await fetch(
+    // Try v2 endpoint first, fall back to v1 (legacy)
+    const browserlessEndpoints = [
+      `https://production-sfo.browserless.io/function?token=${BROWSERLESS_KEY}`,
       `https://chrome.browserless.io/function?token=${BROWSERLESS_KEY}`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          code: puppeteerCode,
-          context: { url },
-        }),
-        signal: AbortSignal.timeout(120000), // 2 min for full quiz navigation
-      },
-    );
+    ];
+
+    let res: Response | null = null;
+    let lastErr = "";
+    for (const endpoint of browserlessEndpoints) {
+      try {
+        res = await fetch(endpoint, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            code: puppeteerCode,
+            context: { url },
+          }),
+          signal: AbortSignal.timeout(120000), // 2 min for full quiz navigation
+        });
+        if (res.ok) break;
+        lastErr = `${endpoint}: HTTP ${res.status}`;
+        res = null;
+      } catch (e: any) {
+        lastErr = e.message;
+        res = null;
+      }
+    }
+    if (!res) throw new Error(`Browserless unreachable: ${lastErr}`);
 
     if (!res.ok) {
       const errText = await res.text();
