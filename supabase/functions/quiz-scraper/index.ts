@@ -14,7 +14,240 @@ serve(async (req) => {
   }
 
   try {
-    const { url, maxSteps = 20 } = await req.json();
+    const body = await req.json().catch(() => ({}));
+    const { action, url, maxSteps = 20, apiKey, prompt, step, funnelContext } = body;
+
+    // 1. Action: Generate Image (DALL-E 3)
+    if (action === "generate-image") {
+      if (!apiKey) {
+        return new Response(JSON.stringify({ error: "OpenAI API Key required" }), {
+          status: 400,
+          headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+        });
+      }
+      if (!prompt) {
+        return new Response(JSON.stringify({ error: "Prompt required" }), {
+          status: 400,
+          headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+        });
+      }
+
+      const openAiRes = await fetch("https://api.openai.com/v1/images/generations", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${apiKey}`,
+        },
+        body: JSON.stringify({
+          model: "dall-e-3",
+          prompt,
+          size: "1024x1024",
+          quality: "standard",
+          n: 1,
+        }),
+      });
+
+      if (!openAiRes.ok) {
+        const errObj = await openAiRes.json().catch(() => ({}));
+        const errMsg = errObj?.error?.message || `Status ${openAiRes.status}`;
+        return new Response(JSON.stringify({ error: `DALL-E error: ${errMsg}` }), {
+          status: 400,
+          headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+        });
+      }
+
+      const data = await openAiRes.json();
+      return new Response(JSON.stringify(data), {
+        headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+      });
+    }
+
+    // 2. Action: Vision OpenAI (GPT-4o)
+    if (action === "analyze-vision-openai") {
+      if (!apiKey) {
+        return new Response(JSON.stringify({ error: "OpenAI API Key required" }), {
+          status: 400,
+          headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+        });
+      }
+      if (!step || !step.screenshot) {
+        return new Response(JSON.stringify({ error: "Step screenshot required" }), {
+          status: 400,
+          headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+        });
+      }
+
+      const knownContent = step.content || {};
+      const res = await fetch("https://api.openai.com/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${apiKey}`,
+        },
+        body: JSON.stringify({
+          model: "gpt-4o",
+          messages: [
+            {
+              role: "system",
+              content: `You are an expert at analyzing quiz funnel screenshots and converting them to structured JSON components.
+
+Return a JSON array of components. Each component is one of these types:
+- { "type": "text", "text": "..." }
+- { "type": "image", "imageUrl": "url or empty", "alt": "..." }
+- { "type": "options", "title": "...", "subtitle": "...", "columns": 1 or 2, "options": [{ "id": "rand8", "label": "...", "image": "imageUrl or empty" }] }
+- { "type": "capture", "title": "...", "fields": [{ "id": "rand8", "type": "text|email|tel", "label": "...", "required": true }], "buttonText": "..." }
+- { "type": "button", "buttonText": "..." }
+- { "type": "loading", "text": "...", "loadingDuration": 3 }
+- { "type": "price", "title": "...", "price": "R$ XX", "pricePeriod": "/único", "priceFeatures": ["..."], "buttonText": "..." }
+- { "type": "plans", "title": "...", "plans": [{ "id": "rand8", "name": "...", "originalPrice": "R$ XX", "promoPrice": "R$ XX", "period": "/mês", "popular": false }] }
+- { "type": "testimonials", "title": "...", "testimonials": [{ "id": "rand8", "author": "...", "text": "..." }] }
+- { "type": "timer", "seconds": 600, "text": "Oferta expira em" }
+- { "type": "alert", "text": "...", "variant": "info" }
+
+RULES:
+- Extract ALL text VERBATIM from the image (Brazilian Portuguese)
+- For options: list EVERY visible option label
+- For capture forms: list ALL visible fields
+- For prices: extract EXACT price values
+- Generate 8-char random alphanumeric ids for id fields
+- Return ONLY a JSON array, no markdown or explanation`,
+            },
+            {
+              role: "user",
+              content: [
+                {
+                  type: "text",
+                  text: `Analyze this screenshot of step ${step.stepNumber} of a quiz funnel.
+Context: ${funnelContext}
+Page type detected: ${knownContent.pageType}
+Known title: "${knownContent.title}"
+Known options count: ${knownContent.options?.length || 0}
+Known text: "${(knownContent.allText || "").slice(0, 800)}"
+
+Extract ALL components you see in this screenshot. Be extremely accurate and verbose.`,
+                },
+                {
+                  type: "image_url",
+                  image_url: {
+                    url: step.screenshot,
+                    detail: "high",
+                  },
+                },
+              ],
+            },
+          ],
+          max_tokens: 2000,
+        }),
+      });
+
+      if (!res.ok) {
+        const errObj = await res.json().catch(() => ({}));
+        const errMsg = errObj?.error?.message || `Status ${res.status}`;
+        return new Response(JSON.stringify({ error: `GPT-4V error: ${errMsg}` }), {
+          status: 400,
+          headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+        });
+      }
+
+      const data = await res.json();
+      const content = data.choices[0]?.message?.content || "[]";
+      const jsonStr = content
+        .replace(/^```(?:json)?\n?/m, "")
+        .replace(/\n?```$/m, "")
+        .trim();
+
+      try {
+        const components = JSON.parse(jsonStr);
+        return new Response(JSON.stringify({ components }), {
+          headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+        });
+      } catch {
+        return new Response(JSON.stringify({ error: "Failed to parse JSON response from GPT-4V" }), {
+          status: 500,
+          headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+        });
+      }
+    }
+
+    // 3. Action: Vision Anthropic (Claude 3.5 Sonnet)
+    if (action === "analyze-vision-claude") {
+      if (!apiKey) {
+        return new Response(JSON.stringify({ error: "Anthropic API Key required" }), {
+          status: 400,
+          headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+        });
+      }
+      if (!step || !step.screenshot) {
+        return new Response(JSON.stringify({ error: "Step screenshot required" }), {
+          status: 400,
+          headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+        });
+      }
+
+      const base64Data = step.screenshot.replace(/^data:image\/[a-z]+;base64,/, "");
+      const knownContent = step.content || {};
+
+      const res = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-api-key": apiKey,
+          "anthropic-version": "2023-06-01",
+        },
+        body: JSON.stringify({
+          model: "claude-3-5-sonnet-20241022",
+          max_tokens: 2000,
+          messages: [
+            {
+              role: "user",
+              content: [
+                {
+                  type: "image",
+                  source: { type: "base64", media_type: "image/png", data: base64Data },
+                },
+                {
+                  type: "text",
+                  text: `Analyze this screenshot of step ${step.stepNumber} of a quiz funnel (${funnelContext}).
+Page type: ${knownContent.pageType}. Known title: "${knownContent.title}". Options found: ${knownContent.options?.length || 0}.
+
+Return a JSON array of components. Types: text, image, options, capture, button, loading, price, plans, testimonials, timer, alert.
+- options: { type:"options", title, subtitle, columns(1-2), options:[{id,label,image}] }
+- capture: { type:"capture", title, fields:[{id,type,label,required}], buttonText }
+- price: { type:"price", title, price, pricePeriod, priceFeatures:[], buttonText }
+- plans: { type:"plans", title, plans:[{id,name,originalPrice,promoPrice,period,popular}] }
+Use 8-char random alphanumeric ids. Extract ALL text VERBATIM in Brazilian Portuguese. Return ONLY valid JSON array.`,
+                },
+              ],
+            },
+          ],
+        }),
+      });
+
+      if (!res.ok) {
+        const errText = await res.text();
+        return new Response(JSON.stringify({ error: `Claude error: ${errText}` }), {
+          status: 400,
+          headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+        });
+      }
+
+      const data = await res.json();
+      const content = data.content[0]?.text || "[]";
+      const jsonStr = content.replace(/^```(?:json)?\n?/m, "").replace(/\n?```$/m, "").trim();
+
+      try {
+        const components = JSON.parse(jsonStr);
+        return new Response(JSON.stringify({ components }), {
+          headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+        });
+      } catch {
+        return new Response(JSON.stringify({ error: "Failed to parse JSON response from Claude" }), {
+          status: 500,
+          headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+        });
+      }
+    }
+
     if (!url) {
       return new Response(JSON.stringify({ error: "URL required" }), {
         status: 400,

@@ -45,6 +45,7 @@ async function invokeFn<T>(name: string, body: any): Promise<T> {
   return data as T;
 }
 
+
 function inferStepTitle(step: ScrapedStep, index: number): string {
   const { pageType, title } = step.content;
   if (title) return title;
