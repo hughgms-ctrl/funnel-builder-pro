@@ -20,7 +20,8 @@ serve(async (req) => {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${KEY}`,
+        "Lovable-API-Key": KEY || "",
+        "X-Lovable-AIG-SDK": "edge-function",
       },
       body: JSON.stringify({
         model: "google/gemini-2.5-flash-image",
