@@ -65,7 +65,8 @@ Retorne array JSON dos componentes.`,
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      Authorization: `Bearer ${LOVABLE_API_KEY}`,
+      "Lovable-API-Key": LOVABLE_API_KEY || "",
+      "X-Lovable-AIG-SDK": "edge-function",
     },
     body: JSON.stringify(body),
   });

@@ -18,7 +18,6 @@ import {
   Loader2,
   ChevronRight,
   Copy,
-  Zap,
   Terminal,
   Globe,
   MousePointer,
@@ -41,11 +40,9 @@ const STAGES = [
 ] as const;
 
 export function FunnelClonerModal({ open, onClose }: FunnelClonerModalProps) {
-  const apiKeys = useFunnelStore((s) => s.apiKeys);
   const setFunnel = useFunnelStore((s) => s.setFunnel);
 
   const [url, setUrl] = useState("");
-  const [provider, setProvider] = useState<"openai" | "anthropic">("openai");
   
   // Scraper progress state
   const [progress, setProgress] = useState<CloneProgress>({
@@ -66,10 +63,6 @@ export function FunnelClonerModal({ open, onClose }: FunnelClonerModalProps) {
   const [logs, setLogs] = useState<string[]>([]);
   
   const terminalEndRef = useRef<HTMLDivElement>(null);
-
-  const hasOpenAI = !!apiKeys.openai;
-  const hasAnthropic = !!apiKeys.anthropic;
-  const hasAnyKey = hasOpenAI || hasAnthropic;
 
   const isRunning =
     progress.stage !== "idle" && progress.stage !== "done" && progress.stage !== "error";
@@ -97,7 +90,7 @@ export function FunnelClonerModal({ open, onClose }: FunnelClonerModalProps) {
 
     addLog("🔌 Estabelecendo conexão segura com o cloner...");
     addLog(`🔍 Analisando URL: ${url}`);
-    addLog(`🤖 Provedor de IA selecionado: ${provider === "openai" ? "OpenAI GPT-4o" : "Claude 3.5 Sonnet"}`);
+    addLog("🤖 IA Vision nativa ativada para leitura visual do funil");
 
     try {
       // Step 1: Execute scraping and analysis (uses built-in Lovable AI — no user keys)
@@ -124,7 +117,7 @@ export function FunnelClonerModal({ open, onClose }: FunnelClonerModalProps) {
       addLog(`❌ ERRO: ${msg}`);
       setProgress({ stage: "error", message: msg, percent: 0 });
     }
-  }, [url, provider, apiKeys, addLog]);
+  }, [url, addLog]);
 
   // Simulation Loop
   useEffect(() => {
@@ -336,33 +329,9 @@ export function FunnelClonerModal({ open, onClose }: FunnelClonerModalProps) {
                   />
                 </div>
 
-                <div className="space-y-1.5">
-                  <Label className="text-xs font-semibold text-zinc-300 flex items-center gap-1.5">
-                    <Zap className="h-3.5 w-3.5 text-amber-500" />
-                    Provedor de IA
-                  </Label>
-                  <div className="grid grid-cols-2 gap-2">
-                    <ProviderButton
-                      active={provider === "openai"}
-                      available={hasOpenAI}
-                      label="OpenAI GPT-4o"
-                      badge="+ DALL·E 3 Imagens"
-                      onClick={() => setProvider("openai")}
-                    />
-                    <ProviderButton
-                      active={provider === "anthropic"}
-                      available={hasAnthropic}
-                      label="Claude 3.5 Sonnet"
-                      badge="Anthropic AI"
-                      onClick={() => setProvider("anthropic")}
-                    />
-                  </div>
-                  {!hasAnyKey && (
-                    <p className="text-xs text-amber-500 bg-amber-500/10 border border-amber-500/20 rounded-lg p-2.5 mt-1">
-                      ⚠️ Você precisa configurar a sua chave de API na aba <strong>Config → Chaves de API</strong> primeiro.
-                    </p>
-                  )}
-                </div>
+                <p className="text-xs text-zinc-400 bg-zinc-950/40 border border-zinc-800 rounded-lg p-2.5">
+                  A clonagem usa IA Vision nativa para abrir o link, capturar screenshots, ler textos, botões, imagens e montar as etapas no construtor.
+                </p>
               </div>
             ) : (
               // Active progress visual checklist
