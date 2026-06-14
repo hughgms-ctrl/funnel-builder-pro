@@ -24,22 +24,14 @@ function AIImageGenerator({
 }) {
   const [prompt, setPrompt] = useState(initialPrompt);
   const [generating, setGenerating] = useState(false);
-  const apiKeys = useFunnelStore((s) => s.apiKeys);
-  const openaiKey = apiKeys?.openai;
-
   const handleGenerate = async () => {
-    if (!openaiKey) {
-      toast.error("Por favor, configure sua chave da API OpenAI nas Configurações primeiro.");
-      return;
-    }
     if (!prompt.trim()) {
       toast.error("Digite um prompt descrevendo a imagem desejada.");
       return;
     }
-
     setGenerating(true);
     try {
-      const url = await generateImage(openaiKey, prompt.trim());
+      const url = await generateImage(prompt.trim());
       if (url) {
         onImageGenerated(url);
         toast.success("Imagem gerada com sucesso!");
@@ -52,6 +44,7 @@ function AIImageGenerator({
       setGenerating(false);
     }
   };
+  const openaiKey = true; // generation now uses built-in Lovable AI
 
   return (
     <div className="space-y-2 border border-dashed border-violet-500/30 rounded-lg p-2.5 bg-violet-500/5 mt-1.5">

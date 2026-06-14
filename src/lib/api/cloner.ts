@@ -10,6 +10,15 @@ export interface CloneProgress {
 }
 export type ProgressCallback = (p: CloneProgress) => void;
 
+export async function generateImage(prompt: string): Promise<string> {
+  const supabase = getActiveSupabaseClient();
+  if (!supabase) throw new Error("Supabase não configurado");
+  const { data, error } = await supabase.functions.invoke("generate-image", { body: { prompt } });
+  if (error) throw new Error(error.message);
+  if (data?.error) throw new Error(data.error);
+  return data?.imageUrl || "";
+}
+
 interface ScrapedStep {
   stepNumber: number;
   screenshot: string;
