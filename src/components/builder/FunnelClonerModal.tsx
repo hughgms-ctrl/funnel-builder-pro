@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect, useRef } from "react";
 import { useFunnelStore } from "@/lib/store";
-import { cloneFunnel, type AIProvider, type CloneProgress } from "@/lib/api/cloner";
+import { cloneFunnel, type CloneProgress } from "@/lib/api/cloner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -45,7 +45,7 @@ export function FunnelClonerModal({ open, onClose }: FunnelClonerModalProps) {
   const setFunnel = useFunnelStore((s) => s.setFunnel);
 
   const [url, setUrl] = useState("");
-  const [provider, setProvider] = useState<AIProvider>("openai");
+  const [provider, setProvider] = useState<"openai" | "anthropic">("openai");
   
   // Scraper progress state
   const [progress, setProgress] = useState<CloneProgress>({
@@ -100,8 +100,8 @@ export function FunnelClonerModal({ open, onClose }: FunnelClonerModalProps) {
     addLog(`🤖 Provedor de IA selecionado: ${provider === "openai" ? "OpenAI GPT-4o" : "Claude 3.5 Sonnet"}`);
 
     try {
-      // Step 1: Execute scraping and analysis
-      const resultFunnel = await cloneFunnel(url, provider, apiKeys, (p) => {
+      // Step 1: Execute scraping and analysis (uses built-in Lovable AI — no user keys)
+      const resultFunnel = await cloneFunnel(url, (p: CloneProgress) => {
         setProgress(p);
         if (p.message) {
           addLog(`[SISTEMA] ${p.message}`);
@@ -507,7 +507,7 @@ export function FunnelClonerModal({ open, onClose }: FunnelClonerModalProps) {
               {progress.stage === "idle" && (
                 <Button
                   size="sm"
-                  disabled={!url || isRunning || !hasAnyKey}
+                  disabled={!url || isRunning}
                   onClick={handleClone}
                   className="bg-gradient-to-r from-violet-600 to-pink-600 hover:from-violet-700 hover:to-pink-700 text-white shadow-md shadow-violet-600/10"
                 >
