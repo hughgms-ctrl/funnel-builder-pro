@@ -1,395 +1,67 @@
-import { useState } from "react";
-import { useFunnelStore } from "@/lib/store";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Switch } from "@/components/ui/switch";
-import { Button } from "@/components/ui/button";
-import {
-  Globe,
-  Webhook,
-  BarChart2,
-  ExternalLink,
-  ShoppingCart,
-  Info,
-  Download,
-  CheckCircle2,
-} from "lucide-react";
-import { toast } from "sonner";
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.8";
 
-function SectionHeader({
-  icon: Icon,
-  title,
-  desc,
-}: {
-  icon: React.ComponentType<{ className?: string }>;
-  title: string;
-  desc: string;
-}) {
-  return (
-    <div className="flex items-start gap-3 mb-4">
-      <div className="p-2 rounded-lg bg-muted border">
-        <Icon className="h-4 w-4 text-foreground" />
-      </div>
-      <div>
-        <h3 className="font-semibold text-sm">{title}</h3>
-        <p className="text-xs text-muted-foreground mt-0.5">{desc}</p>
-      </div>
-    </div>
-  );
-}
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+};
 
-function Field({
-  label,
-  children,
-  hint,
-}: {
-  label: string;
-  children: React.ReactNode;
-  hint?: string;
-}) {
-  return (
-    <div className="space-y-1.5">
-      <Label className="text-xs font-medium">{label}</Label>
-      {children}
-      {hint && <p className="text-[11px] text-muted-foreground">{hint}</p>}
-    </div>
-  );
-}
+serve(async (req) => {
+  if (req.method === "OPTIONS") {
+    return new Response("ok", { headers: corsHeaders });
+  }
 
-function Divider() {
-  return <div className="border-t my-6" />;
-}
+  const url = new URL(req.url);
+  const pathParts = url.pathname.split("/");
+  // Expected path format: /serve-funnel/[slug] or /serve-funnel?slug=[slug]
+  let slug = pathParts[pathParts.length - 1];
 
-export function SettingsPanel() {
-  const funnel = useFunnelStore((s) => s.funnel);
-  const updateFunnel = useFunnelStore((s) => s.updateFunnel);
-  const updateStep = useFunnelStore((s) => s.updateStep);
+  if (!slug || slug === "serve-funnel") {
+    slug = url.searchParams.get("slug") || "";
+  }
 
-  return (
-    <div className="flex-1 overflow-y-auto p-6 bg-muted/10">
-      <div className="mx-auto max-w-2xl space-y-0">
-        {/* Header */}
-        <div className="mb-6">
-          <h2 className="text-xl font-bold">Configurações do Funil</h2>
-          <p className="text-sm text-muted-foreground mt-1">
-            Pixels, webhooks, links de venda e integrações deste funil específico.
-            <span className="ml-1 text-violet-600 font-medium">
-              As chaves de API ficam nas ⚙️ Configurações da Plataforma (no painel principal).
-            </span>
-          </p>
-        </div>
+  if (!slug) {
+    return new Response("Slug não informado.", { status: 400, headers: corsHeaders });
+  }
 
-        {/* ── PUBLICAÇÃO DO FUNIL ── */}
-        <div className="rounded-xl border bg-background p-5 shadow-sm space-y-4">
-          <SectionHeader
-            icon={Globe}
-            title="Link de Venda / Checkout"
-            desc="Link padrão de checkout. Pode ser sobrescrito por plano ou por botão individualmente."
-          />
+  const supabaseUrl = Deno.env.get("SUPABASE_URL") || "";
+  const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || Deno.env.get("SUPABASE_ANON_KEY") || "";
+  const supabase = createClient(supabaseUrl, supabaseKey);
 
-          <Field
-            label="URL de Venda (fallback global)"
-            hint="Usado quando o componente Price/Button não tem um link próprio definido."
-          >
-            <div className="relative">
-              <Input
-                value={funnel.saleUrl || ""}
-                onChange={(e) => updateFunnel({ saleUrl: e.target.value })}
-                placeholder="https://checkout.exemplo.com/produto"
-                className="pr-9"
-              />
-              {funnel.saleUrl && (
-                <a
-                  href={funnel.saleUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                >
-                  <ExternalLink className="h-3.5 w-3.5" />
-                </a>
-              )}
-            </div>
-          </Field>
-        </div>
+  // Fetch the funnel data by publishedSlug or ID
+  // Note: Assuming a table "funnels" exists with a column "publishedSlug" or similar.
+  // Since we want this to be extremely robust, if the database doesn't have it, we can return a fallback template
+  // or return the HTML build script generator.
+  // To keep it simple and standalone, we will build a function that fetches from the database:
+  let funnelData: any = null;
+  try {
+    const { data, error } = await supabase
+      .from("funnels")
+      .select("*")
+      .or(`publishedSlug.eq.${slug},id.eq.${slug}`)
+      .single();
 
-        <Divider />
+    if (error || !data) {
+      // If table doesn't exist or not found, search the state in public profiles or return demo
+      throw new Error(error?.message || "Funnel not found");
+    }
+    funnelData = typeof data.raw_json === "string" ? JSON.parse(data.raw_json) : data.raw_json || data;
+  } catch (err) {
+    return new Response(`Funil com o slug/id "${slug}" não foi encontrado ou tabela 'funnels' não configurada. Erro: ${err.message}`, {
+      status: 404,
+      headers: { ...corsHeaders, "Content-Type": "text/html; charset=utf-8" },
+    });
+  }
 
-        {/* ── PUBLICAR FUNIL & STANDALONE HTML ── */}
-        <div className="rounded-xl border bg-background p-5 shadow-sm space-y-4">
-          <SectionHeader
-            icon={Globe}
-            title="Publicar Funil"
-            desc="Exporte seu funil em HTML Standalone de alto desempenho ou configure o slug para o servidor Supabase."
-          />
+  const html = generateStandaloneHtml(funnelData);
 
-          <Field
-            label="Slug Personalizado (Endereço do Funil)"
-            hint="Ex: meu-quiz-sono. Usado na URL do Supabase."
-          >
-            <Input
-              value={funnel.publishedSlug || ""}
-              onChange={(e) => updateFunnel({ publishedSlug: e.target.value.toLowerCase().replace(/[^a-z0-9-_]/g, "") })}
-              placeholder="meu-quiz-sono"
-              className="font-mono text-sm"
-            />
-          </Field>
-
-          {funnel.publishedSlug && (
-            <div className="p-3 rounded-lg border bg-muted/20 space-y-2">
-              <p className="text-xs font-semibold text-zinc-400">URL de Visualização / Produção:</p>
-              <div className="flex items-center justify-between gap-2 bg-zinc-900 border border-zinc-850 px-2.5 py-1.5 rounded-md text-[11px] font-mono text-zinc-300">
-                <span className="truncate">https://qnfajhzlktbxmaequbgi.supabase.co/functions/v1/serve-funnel/{funnel.publishedSlug}</span>
-                <Button
-                  size="icon"
-                  variant="ghost"
-                  className="h-6 w-6 text-zinc-400 hover:text-white"
-                  onClick={() => {
-                    navigator.clipboard.writeText(`https://qnfajhzlktbxmaequbgi.supabase.co/functions/v1/serve-funnel/${funnel.publishedSlug}`);
-                    toast.success("Link copiado para a área de transferência!");
-                  }}
-                >
-                  <CheckCircle2 className="h-3.5 w-3.5" />
-                </Button>
-              </div>
-            </div>
-          )}
-
-          <div className="pt-2 border-t flex flex-col gap-2">
-            <Button
-              onClick={() => {
-                const slug = funnel.publishedSlug || "funnel";
-                const htmlContent = generateStandaloneHtml(funnel);
-                const blob = new Blob([htmlContent], { type: "text/html;charset=utf-8" });
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement("a");
-                a.href = url;
-                a.download = `${slug}.html`;
-                document.body.appendChild(a);
-                a.click();
-                document.body.removeChild(a);
-                URL.revokeObjectURL(url);
-                toast.success("HTML Standalone exportado com sucesso!");
-              }}
-              className="w-full bg-violet-600 hover:bg-violet-700 text-white font-medium flex items-center justify-center gap-1.5"
-            >
-              <Download className="h-4 w-4" /> Exportar HTML Standalone (Baixar Arquivo)
-            </Button>
-            <p className="text-[10px] text-muted-foreground text-center">
-              Gera um único arquivo index.html contendo todo o CSS, imagens embutidas, pixels e lógica do seu quiz. Carrega instantaneamente e pode ser hospedado em qualquer lugar.
-            </p>
-          </div>
-        </div>
-
-        <Divider />
-
-        {/* ── ETAPA DE VENDA ── */}
-        <div className="rounded-xl border bg-background p-5 shadow-sm space-y-4">
-          <SectionHeader
-            icon={ShoppingCart}
-            title="Etapa de Venda / Conversão"
-            desc="Marque qual etapa representa uma venda concluída. Leads que chegam até ela serão contabilizados como conversões."
-          />
-
-          <div className="space-y-2">
-            {funnel.steps.length === 0 ? (
-              <p className="text-sm text-muted-foreground">Nenhuma etapa criada ainda.</p>
-            ) : (
-              funnel.steps.map((step) => (
-                <div key={step.id} className="flex items-center justify-between rounded-lg border p-3 bg-muted/20">
-                  <div>
-                    <p className="text-sm font-medium">{step.title}</p>
-                    <p className="text-xs text-muted-foreground">{step.components.length} componente(s)</p>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    {step.isSaleStep && (
-                      <span className="text-[10px] font-bold bg-emerald-500/15 text-emerald-600 border border-emerald-500/30 px-2 py-0.5 rounded-full">
-                        💰 VENDA
-                      </span>
-                    )}
-                    <Switch
-                      checked={!!step.isSaleStep}
-                      onCheckedChange={(v) => {
-                        // Only one sale step at a time — unmark others
-                        if (v) {
-                          funnel.steps.forEach((s) => {
-                            if (s.id !== step.id && s.isSaleStep) {
-                              updateStep(s.id, { isSaleStep: false });
-                            }
-                          });
-                        }
-                        updateStep(step.id, { isSaleStep: v });
-                      }}
-                    />
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
-
-          <div className="flex gap-2 text-xs text-muted-foreground bg-muted/50 rounded-lg p-3">
-            <Info className="h-4 w-4 shrink-0 mt-0.5" />
-            <span>
-              Quando um lead completa todas as etapas até a etapa marcada como Venda, ele aparece como conversão no painel de Leads &amp; Métricas.
-            </span>
-          </div>
-        </div>
-
-        <Divider />
-
-        {/* ── LEADS WEBHOOK ── */}
-        <div className="rounded-xl border bg-background p-5 shadow-sm space-y-4">
-          <SectionHeader
-            icon={Webhook}
-            title="Webhooks"
-            desc="Conecte seu funil ao CRM, Make, Zapier ou n8n."
-          />
-
-          <Field
-            label="Webhook de Leads"
-            hint="POST com JSON {id, funnelName, createdAt, answers} para cada lead capturado"
-          >
-            <div className="relative">
-              <Input
-                value={funnel.leadWebhookUrl || ""}
-                onChange={(e) => updateFunnel({ leadWebhookUrl: e.target.value })}
-                placeholder="https://hook.make.com/leads-webhook"
-                className="pr-9 font-mono text-xs"
-              />
-              {funnel.leadWebhookUrl && (
-                <a
-                  href={funnel.leadWebhookUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                >
-                  <ExternalLink className="h-3.5 w-3.5" />
-                </a>
-              )}
-            </div>
-          </Field>
-
-          <Field
-            label="Webhook de Vendas / Conversões"
-            hint="POST disparado quando o lead chega na etapa marcada como Venda"
-          >
-            <div className="relative">
-              <Input
-                value={funnel.saleWebhookUrl || ""}
-                onChange={(e) => updateFunnel({ saleWebhookUrl: e.target.value })}
-                placeholder="https://hook.make.com/vendas-webhook"
-                className="pr-9 font-mono text-xs"
-              />
-              {funnel.saleWebhookUrl && (
-                <a
-                  href={funnel.saleWebhookUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                >
-                  <ExternalLink className="h-3.5 w-3.5" />
-                </a>
-              )}
-            </div>
-          </Field>
-
-          <div className="flex items-center gap-2">
-            <input
-              id="supabase-leads"
-              type="checkbox"
-              checked={funnel.supabaseEnabled ?? false}
-              onChange={(e) => updateFunnel({ supabaseEnabled: e.target.checked })}
-              className="h-4 w-4 accent-violet-600"
-            />
-            <Label htmlFor="supabase-leads" className="text-sm cursor-pointer">
-              Salvar leads no Supabase (Necessário ter conexão ativa)
-            </Label>
-          </div>
-
-          <div className="bg-muted/50 rounded-lg p-3 text-xs text-muted-foreground space-y-1">
-            <p className="font-medium text-foreground">Payload enviado ao webhook:</p>
-            <pre className="font-mono text-[11px]">
-              {`{
-  "id": "abc123",
-  "funnelName": "${funnel.name}",
-  "createdAt": "2025-01-01T00:00:00Z",
-  "answers": { "nome": "João", "email": "j@ex.com" },
-  "converted": false
-}`}
-            </pre>
-          </div>
-        </div>
-
-        <Divider />
-
-        {/* ── PIXELS ── */}
-        <div className="rounded-xl border bg-background p-5 shadow-sm space-y-4">
-          <SectionHeader
-            icon={BarChart2}
-            title="Pixels de Rastreamento"
-            desc="Rastreie conversões e otimize seus anúncios com pixels de retargeting."
-          />
-
-          <Field
-            label="Meta Pixel ID (Facebook / Instagram)"
-            hint="Apenas o número do ID, ex: 123456789012345"
-          >
-            <div className="flex items-center gap-2">
-              <div className="w-6 h-6 rounded bg-[#1877F2] flex items-center justify-center shrink-0">
-                <span className="text-white font-bold text-xs">f</span>
-              </div>
-              <Input
-                value={funnel.metaPixelId || ""}
-                onChange={(e) => updateFunnel({ metaPixelId: e.target.value })}
-                placeholder="123456789012345"
-                className="font-mono"
-              />
-            </div>
-          </Field>
-
-          <Field
-            label="Google Tag Manager ID"
-            hint="ID do container GTM, ex: GTM-XXXXXX"
-          >
-            <div className="flex items-center gap-2">
-              <div className="w-6 h-6 rounded bg-[#4285F4] flex items-center justify-center shrink-0">
-                <span className="text-white font-bold text-xs">G</span>
-              </div>
-              <Input
-                value={funnel.googleTagId || ""}
-                onChange={(e) => updateFunnel({ googleTagId: e.target.value })}
-                placeholder="GTM-XXXXXX"
-                className="font-mono"
-              />
-            </div>
-          </Field>
-
-          <Field
-            label="TikTok Pixel ID"
-            hint="ID do pixel TikTok, ex: C1234567890"
-          >
-            <div className="flex items-center gap-2">
-              <div className="w-6 h-6 rounded bg-[#000000] flex items-center justify-center shrink-0">
-                <span className="text-white font-bold text-xs">T</span>
-              </div>
-              <Input
-                value={funnel.tiktokPixelId || ""}
-                onChange={(e) => updateFunnel({ tiktokPixelId: e.target.value })}
-                placeholder="C1234567890"
-                className="font-mono"
-              />
-            </div>
-          </Field>
-
-          <div className="bg-muted/50 rounded-lg p-3 text-xs text-muted-foreground">
-            Os pixels são injetados automaticamente quando o funil é exibido para o usuário final (modo preview e publicado).
-          </div>
-        </div>
-
-        <div className="h-8" />
-      </div>
-    </div>
-  );
-}
+  return new Response(html, {
+    headers: {
+      ...corsHeaders,
+      "Content-Type": "text/html; charset=utf-8",
+    },
+  });
+});
 
 function generateStandaloneHtml(funnel: any): string {
   const primary = funnel.primaryColor || "#7c3aed";
@@ -397,12 +69,14 @@ function generateStandaloneHtml(funnel: any): string {
   const name = funnel.name || "QuizFunnel";
   const logoUrl = funnel.logoUrl || "";
 
+  // Prepare standard components inject / assets
+  // Injected Tailwind and icons
   return `<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>\${name}</title>
+  <title>${name}</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
   <style>
@@ -421,7 +95,7 @@ function generateStandaloneHtml(funnel: any): string {
   </style>
   
   <!-- Meta Pixel Code -->
-  \${funnel.metaPixelId ? \`
+  ${funnel.metaPixelId ? `
   <script>
     !function(f,b,e,v,n,t,s){if(f.fbq)return;n=f.fbq=function(){n.callMethod?
     n.callMethod.apply(n,arguments):n.queue.push(arguments)};
@@ -430,22 +104,22 @@ function generateStandaloneHtml(funnel: any): string {
     t.src=v;s=b.getElementsByTagName(e)[0];
     s.parentNode.insertBefore(t,s)}(window, document,'script',
     'https://connect.facebook.net/en_US/fbevents.js');
-    fbq('init', '\${funnel.metaPixelId}');
+    fbq('init', '${funnel.metaPixelId}');
     fbq('track', 'PageView');
   </script>
-  \` : ""}
+  ` : ""}
 
   <!-- Google Tag Manager -->
-  \${funnel.googleTagId ? \`
+  ${funnel.googleTagId ? `
   <script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
   new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
   j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
   'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
-  })(window,document,'script','dataLayer','\${funnel.googleTagId}');</script>
-  \` : ""}
+  })(window,document,'script','dataLayer','${funnel.googleTagId}');</script>
+  ` : ""}
 
   <!-- TikTok Pixel -->
-  \${funnel.tiktokPixelId ? \`
+  ${funnel.tiktokPixelId ? `
   <script>
     !function (w, d, t) {
       w.TiktokSdkObject = t; var ttq = w[t] = w[t] || []; ttq.methods = ["page", "track", "identify", "instances", "debug", "on", "off", "once", "ready", "alias", "group", "enableCookie", "cleanCookie"];
@@ -454,14 +128,14 @@ function generateStandaloneHtml(funnel: any): string {
         var i = "https://analytics.tiktok.com/i18n/pixel/events.js"; ttq._i = ttq._i || {}, ttq._i[e] = [], ttq._i[e]._u = i, ttq._t = ttq._t || {}, ttq._t[e] = +new Date, ttq._o = ttq._o || {}, ttq._o[e] = n || {};
         var o = d.createElement("script"); o.type = "text/javascript", o.async = !0, o.src = i; var a = d.getElementsByTagName("script")[0]; a.parentNode.insertBefore(o, a)
       };
-      ttq.load('\${funnel.tiktokPixelId}');
+      ttq.load('${funnel.tiktokPixelId}');
       ttq.page();
     }(window, document, 'ttq');
   </script>
-  \` : ""}
+  ` : ""}
 </head>
 <body class="flex flex-col min-h-screen">
-  \${funnel.googleTagId ? \`<noscript><iframe src="https://www.googletagmanager.com/ns.html?id=\${funnel.googleTagId}" height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>\` : ""}
+  ${funnel.googleTagId ? `<noscript><iframe src="https://www.googletagmanager.com/ns.html?id=${funnel.googleTagId}" height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>` : ""}
 
   <div id="app" class="flex-1 flex flex-col mx-auto w-full max-w-xl bg-white shadow-md min-h-screen relative">
     <!-- Header -->
@@ -471,10 +145,10 @@ function generateStandaloneHtml(funnel: any): string {
         <span />
       </div>
       <div id="logo-container" class="flex justify-center pt-3">
-        \${logoUrl ? \`<img src="\${logoUrl}" alt="logo" class="h-10 object-contain" />\` : \`<div class="text-lg font-bold tracking-wide" style="color: \${primary}">\${name}</div>\`}
+        ${logoUrl ? `<img src="${logoUrl}" alt="logo" class="h-10 object-contain" />` : `<div class="text-lg font-bold tracking-wide" style="color: ${primary}">${name}</div>`}
       </div>
       <div id="progress-bar-container" class="mt-3 h-1.5 w-full rounded-full bg-gray-100 overflow-hidden">
-        <div id="progress-bar" class="h-full transition-all duration-300" style="width: 0%; background-color: \${primary}"></div>
+        <div id="progress-bar" class="h-full transition-all duration-300" style="width: 0%; background-color: ${primary}"></div>
       </div>
     </header>
 
@@ -488,7 +162,7 @@ function generateStandaloneHtml(funnel: any): string {
   </div>
 
   <script>
-    const funnel = \${JSON.stringify(funnel)};
+    const funnel = ${JSON.stringify(funnel)};
     let currentStepId = funnel.steps[0]?.id;
     const history = [];
     const answers = {};
@@ -498,7 +172,7 @@ function generateStandaloneHtml(funnel: any): string {
       if (!rule || rule.trim() === "") return true;
       try {
         let processed = parseTemplateText(rule, variables);
-        const sanitized = processed.replace(/[^a-zA-Z0-9\\\\s=!<>&|()+\\-*/.'"]/g, "");
+        const sanitized = processed.replace(/[^a-zA-Z0-9\\s=!<>&|()+\\-*/.'"]/g, "");
         try {
           const fn = new Function("return (" + sanitized + ");");
           return !!fn();
@@ -525,7 +199,7 @@ function generateStandaloneHtml(funnel: any): string {
       let iterations = 0;
       while (result.includes("{{") && iterations < 15) {
         iterations++;
-        const match = result.match(/\\\\{\\\\{([^{}]+)\\\\}\\\\}/);
+        const match = result.match(/\\{\\{([^{}]+)\\}\\}/);
         if (!match) break;
         const token = match[0];
         const varName = match[1].trim();
@@ -543,7 +217,7 @@ function generateStandaloneHtml(funnel: any): string {
 
     function evaluateMathExpression(expr) {
       try {
-        const sanitized = expr.replace(/[^0-9+\\-*/().\\\\s]/g, "");
+        const sanitized = expr.replace(/[^0-9+\\-*/().\\s]/g, "");
         const fn = new Function("return (" + sanitized + ");");
         const val = fn();
         if (typeof val === "number" && !isNaN(val)) {
@@ -723,7 +397,7 @@ function generateStandaloneHtml(funnel: any): string {
             const cols = c.columns || 1;
             optsHtml += '<div class="grid gap-3" style="grid-template-columns: repeat(' + cols + ', minmax(0, 1fr))">';
             c.options?.forEach(opt => {
-              optsHtml += '<button onclick="selectOption(\\\'' + opt.label + '\\\', \\\'' + (opt.nextStepId || '') + '\\\', ' + (opt.score || 0) + ', \\\'' + (c.idName || '') + '\\\')" class="border rounded-lg p-3 hover:bg-gray-50 font-medium text-sm text-center flex flex-col items-center justify-center transition">';
+              optsHtml += '<button onclick="selectOption(\\'' + opt.label + '\\', \\'' + (opt.nextStepId || '') + '\\', ' + (opt.score || 0) + ', \\'' + (c.idName || '') + '\\')" class="border rounded-lg p-3 hover:bg-gray-50 font-medium text-sm text-center flex flex-col items-center justify-center transition">';
               if (opt.image) {
                 optsHtml += '<img src="' + opt.image + '" class="w-full aspect-square object-cover mb-2 rounded" />';
               }
@@ -735,8 +409,8 @@ function generateStandaloneHtml(funnel: any): string {
           case "button":
             let btnAnim = "";
             if (c.animation === "pulsating") btnAnim = " animate-pulse-slow ";
-            const btnOnClick = c.href ? 'onclick="trackPurchase(); window.open(\\\'' + c.href + '\\\', \\\'' + (c.openInNewTab ? '_blank' : '_self') + '\\\')"' : 'onclick="advance(\\\'' + (c.nextStepId || '') + '\\\')"';
-            const btnElStr = '<button ' + btnOnClick + ' class="w-full py-3 px-4 font-semibold text-white rounded-lg transition active:scale-95' + btnAnim + '" style="background-color: \${primary}">' + parseTemplateText(c.buttonText || "Continuar", variables) + '</button>';
+            const btnOnClick = c.href ? 'onclick="trackPurchase(); window.open(\\'' + c.href + '\\', \\'' + (c.openInNewTab ? '_blank' : '_self') + '\\')"' : 'onclick="advance(\\'' + (c.nextStepId || '') + '\\')"';
+            const btnElStr = '<button ' + btnOnClick + ' class="w-full py-3 px-4 font-semibold text-white rounded-lg transition active:scale-95' + btnAnim + '" style="background-color: ${primary}">' + parseTemplateText(c.buttonText || "Continuar", variables) + '</button>';
             
             if (c.fixedFooter) {
               fixedFooter.className = "fixed bottom-0 left-0 right-0 border-t bg-white/95 backdrop-blur p-4 shadow-lg z-50 block";
@@ -749,19 +423,19 @@ function generateStandaloneHtml(funnel: any): string {
           case "price":
             let priceHtml = '<div class="' + boxStyles + ' text-center space-y-4">';
             if (c.title) priceHtml += '<h3 class="text-lg font-bold">' + parseTemplateText(c.title, variables) + '</h3>';
-            priceHtml += '<div><span class="text-4xl font-extrabold" style="color: \${primary}">' + parseTemplateText(c.price || "", variables) + '</span>';
+            priceHtml += '<div><span class="text-4xl font-extrabold" style="color: ${primary}">' + parseTemplateText(c.price || "", variables) + '</span>';
             if (c.pricePeriod) priceHtml += '<span class="text-xs text-gray-500 block">' + parseTemplateText(c.pricePeriod, variables) + '</span>';
             priceHtml += '</div>';
             
             if (c.priceFeatures?.length) {
               priceHtml += '<ul class="space-y-2 text-left border-t border-b py-4">';
               c.priceFeatures.forEach(f => {
-                priceHtml += '<li class="flex gap-2 text-sm"><span class="font-bold" style="color: \${primary}">✓</span><span>' + parseTemplateText(f, variables) + '</span></li>';
+                priceHtml += '<li class="flex gap-2 text-sm"><span class="font-bold" style="color: ${primary}">✓</span><span>' + parseTemplateText(f, variables) + '</span></li>';
               });
               priceHtml += '</ul>';
             }
             const checkoutLink = c.href || funnel.saleUrl || "#";
-            priceHtml += '<button onclick="trackPurchase(); window.open(\\\'' + checkoutLink + '\\\', \\\'' + (c.openInNewTab ? '_blank' : '_self') + '\\\'); advance(\\\'' + (c.nextStepId || '') + '\\\')" class="w-full py-3.5 px-4 rounded-lg font-semibold text-white transition active:scale-95" style="background-color: \${primary}">' + parseTemplateText(c.buttonText || "Adquirir agora", variables) + '</button>';
+            priceHtml += '<button onclick="trackPurchase(); window.open(\\'' + checkoutLink + '\\', \\'' + (c.openInNewTab ? '_blank' : '_self') + '\\'); advance(\\'' + (c.nextStepId || '') + '\\')" class="w-full py-3.5 px-4 rounded-lg font-semibold text-white transition active:scale-95" style="background-color: ${primary}">' + parseTemplateText(c.buttonText || "Adquirir agora", variables) + '</button>';
             priceHtml += '</div>';
             el.innerHTML = priceHtml;
             break;
@@ -772,7 +446,7 @@ function generateStandaloneHtml(funnel: any): string {
               const borderCol = plan.popular ? "border-green-600 shadow-md" : "border-gray-200";
               const dotCol = plan.popular ? "bg-green-600" : "";
               const planLink = plan.href || funnel.saleUrl || "#";
-              plansHtml += '<div onclick="trackPurchase(); window.open(\\\'' + planLink + '\\\', \\\'' + (plan.openInNewTab ? '_blank' : '_self') + '\\\'); selectOption(\\\'' + plan.name + '\\\', \\\'' + (plan.nextStepId || '') + '\\\', 0, \\\'' + (c.idName || '') + '\\\')" class="border-2 ' + borderCol + ' rounded-xl p-4 cursor-pointer relative flex flex-col justify-between">';
+              plansHtml += '<div onclick="trackPurchase(); window.open(\\'' + planLink + '\\', \\'' + (plan.openInNewTab ? '_blank' : '_self') + '\\'); selectOption(\\'' + plan.name + '\\', \\'' + (plan.nextStepId || '') + '\\', 0, \\'' + (c.idName || '') + '\\')" class="border-2 ' + borderCol + ' rounded-xl p-4 cursor-pointer relative flex flex-col justify-between">';
               if (plan.popular) {
                 plansHtml += '<div class="absolute top-0 left-0 right-0 bg-green-600 text-white text-[9px] font-black text-center py-0.5 uppercase">' + (plan.popularText || "MAIS POPULAR") + '</div>';
               }
@@ -801,8 +475,8 @@ function generateStandaloneHtml(funnel: any): string {
             graphHtml += '<circle cx="' + W + '" cy="20" r="6" fill="white" stroke="#6b7280" stroke-width="2" />';
             graphHtml += '<rect x="' + (W - 80) + '" y="0" width="80" height="20" rx="10" fill="white" stroke="#d1d5db" stroke-width="1" />';
             graphHtml += '<text x="' + (W - 40) + '" y="14" text-anchor="middle" font-size="10" fill="#374151" font-weight="600">' + fut + '</text>';
-            graphHtml += '<circle cx="' + bx + '" cy="' + by + '" r="7" fill="' + primary + '" stroke="white" stroke-width="2.5" />';
-            graphHtml += '<rect x="' + (bx - 38) + '" y="' + (by - 30) + '" width="76" height="22" rx="11" fill="' + primary + '" />';
+            graphHtml += '<circle cx="' + bx + '" cy="' + by + '" r="7" fill="${primary}" stroke="white" stroke-width="2.5" />';
+            graphHtml += '<rect x="' + (bx - 38) + '" y="' + (by - 30) + '" width="76" height="22" rx="11" fill="${primary}" />';
             graphHtml += '<text x="' + bx + '" y="' + (by - 15) + '" text-anchor="middle" font-size="11" fill="white" font-weight="700">' + curr + '</text>';
             graphHtml += '</svg>';
             graphHtml += '<div class="flex justify-between mt-2 px-1">';
@@ -819,23 +493,23 @@ function generateStandaloneHtml(funnel: any): string {
             setTimeout(() => advance(), (c.loadingDuration || 3) * 1000);
             break;
           case "capture":
-            let capHtml = '<div class="' + boxStyles + '"><h3 class="font-bold text-lg mb-4 text-center">' + parseTemplateText(c.title || "", variables) + '</h3><form onsubmit="event.preventDefault(); handleCaptureSubmit(this, \\\'' + (c.nextStepId || '') + '\\\')" class="space-y-3">';
+            let capHtml = '<div class="' + boxStyles + '"><h3 class="font-bold text-lg mb-4 text-center">' + parseTemplateText(c.title || "", variables) + '</h3><form onsubmit="event.preventDefault(); handleCaptureSubmit(this, \\'' + (c.nextStepId || '') + '\\')" class="space-y-3">';
             c.fields?.forEach(f => {
               const reqAttr = f.required ? "required" : "";
               const fType = f.type || "text";
               capHtml += '<div><label class="block text-xs font-semibold text-gray-600 mb-1">' + f.label + '</label><input type="' + fType + '" name="' + (f.idName || f.id) + '" ' + reqAttr + ' class="w-full px-3 py-2 border rounded-lg text-sm bg-gray-50 focus:outline-none focus:ring-2 focus:ring-purple-600" /></div>';
             });
-            capHtml += '<button type="submit" class="w-full py-3 px-4 font-semibold text-white rounded-lg transition" style="background-color: ' + primary + '">' + (c.buttonText || "Continuar") + '</button></form></div>';
+            capHtml += '<button type="submit" class="w-full py-3 px-4 font-semibold text-white rounded-lg transition" style="background-color: ${primary}">' + (c.buttonText || "Continuar") + '</button></form></div>';
             el.innerHTML = capHtml;
             break;
           case "timer":
-            el.innerHTML = '<div class="' + boxStyles + ' text-center space-y-1"><p class="text-xs font-medium text-gray-400">' + parseTemplateText(c.text || "", variables) + '</p><div class="text-3xl font-mono font-black" style="color: ' + primary + '">05:00</div></div>';
+            el.innerHTML = '<div class="' + boxStyles + ' text-center space-y-1"><p class="text-xs font-medium text-gray-400">' + parseTemplateText(c.text || "", variables) + '</p><div class="text-3xl font-mono font-black" style="color: ${primary}">05:00</div></div>';
             break;
           case "testimonials":
             let testHtml = '<div class="' + boxStyles + ' space-y-4">';
             if (c.title) testHtml += '<h3 class="text-base font-bold text-center border-b pb-2">' + parseTemplateText(c.title, variables) + '</h3>';
             c.testimonials?.forEach(t => {
-              testHtml += '<div class="rounded-lg border p-3.5 bg-gray-50/50 space-y-2"><p class="text-sm italic text-gray-700">\\\\\\"' + parseTemplateText(t.text, variables) + '\\\\\\"</p><div class="flex justify-between items-center"><span class="text-xs text-gray-500 font-semibold">— ' + parseTemplateText(t.author, variables) + '</span><span class="text-amber-500 text-xs">★★★★★</span></div></div>';
+              testHtml += '<div class="rounded-lg border p-3.5 bg-gray-50/50 space-y-2"><p class="text-sm italic text-gray-700">\\"' + parseTemplateText(t.text, variables) + '\\"</p><div class="flex justify-between items-center"><span class="text-xs text-gray-500 font-semibold">— ' + parseTemplateText(t.author, variables) + '</span><span class="text-amber-500 text-xs">★★★★★</span></div></div>';
             });
             testHtml += '</div>';
             el.innerHTML = testHtml;

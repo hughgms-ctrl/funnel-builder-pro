@@ -172,6 +172,7 @@ function componentsFromScrape(step: ScrapedStep): ComponentData[] {
 export async function cloneFunnel(
   url: string,
   onProgress: ProgressCallback,
+  useAI: boolean = true,
 ): Promise<Funnel> {
   // PHASE 1: Scrape all steps
   onProgress({ stage: "fetching", message: "🌐 Navegando pelo funil — capturando screenshots...", percent: 5 });
@@ -189,7 +190,7 @@ export async function cloneFunnel(
     percent: 25,
   });
 
-  // PHASE 2: Analyze each screenshot with Gemini Vision
+  // PHASE 2: Analyze each screenshot with Gemini Vision (or generate directly from DOM/Scrape if useAI is false)
   const primaryColor = scrapedSteps[0]?.content?.primaryColor || "#7c3aed";
   const funnelTheme =
     new URL(url).pathname.split("/").filter(Boolean).pop()?.replace(/-/g, " ") || "quiz";
@@ -201,35 +202,54 @@ export async function cloneFunnel(
     const step = scrapedSteps[i];
     const percent = 25 + Math.round(((i + 1) / scrapedSteps.length) * 65);
 
-    onProgress({
-      stage: "analyzing",
-      message: `🧠 Analisando etapa ${i + 1}/${scrapedSteps.length} com IA Vision...`,
-      percent,
-    });
-
-    let components: ComponentData[] = [];
-    try {
-      const res = await invokeFn<{ components: any[] }>("funnel-analyzer", {
-        screenshot: step.screenshot,
-        content: step.content,
-        context,
+    if (useAI) {
+      onProgress({
+        stage: "analyzing",
+        message: `🧠 Analisando etapa ${i + 1}/${scrapedSteps.length} com IA Vision...`,
+        percent,
       });
-      components = normalizeComponents(res.components || [], step);
-      if (!components.length) components = componentsFromScrape(step);
-    } catch (err: any) {
-      console.error(`Step ${i + 1} analysis failed:`, err.message);
-      components = componentsFromScrape(step);
-    }
 
-    analyzedSteps.push({
-      id: uid(),
-      title: inferStepTitle(step, i),
-      showLogo: true,
-      showProgress: true,
-      showBack: i > 0,
-      isSaleStep: step.content.pageType === "offer" || step.content.pageType === "result",
-      components,
-    });
+      let components: ComponentData[] = [];
+      try {
+        const res = await invokeFn<{ components: any[] }>("funnel-analyzer", {
+          screenshot: step.screenshot,
+          content: step.content,
+          context,
+        });
+        components = normalizeComponents(res.components || [], step);
+        if (!components.length) components = componentsFromScrape(step);
+      } catch (err: any) {
+        console.error(`Step ${i + 1} analysis failed:`, err.message);
+        components = componentsFromScrape(step);
+      }
+
+      analyzedSteps.push({
+        id: uid(),
+        title: inferStepTitle(step, i),
+        showLogo: true,
+        showProgress: true,
+        showBack: i > 0,
+        isSaleStep: step.content.pageType === "offer" || step.content.pageType === "result",
+        components,
+      });
+    } else {
+      onProgress({
+        stage: "building",
+        message: `⚡ Montando etapa ${i + 1}/${scrapedSteps.length} (Modo Rápido)...`,
+        percent,
+      });
+
+      const components = componentsFromScrape(step);
+      analyzedSteps.push({
+        id: uid(),
+        title: inferStepTitle(step, i),
+        showLogo: true,
+        showProgress: true,
+        showBack: i > 0,
+        isSaleStep: step.content.pageType === "offer" || step.content.pageType === "result",
+        components,
+      });
+    }
   }
 
   onProgress({ stage: "building", message: "🛠️ Montando funil...", percent: 95 });

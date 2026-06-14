@@ -43,6 +43,7 @@ export function FunnelClonerModal({ open, onClose }: FunnelClonerModalProps) {
   const setFunnel = useFunnelStore((s) => s.setFunnel);
 
   const [url, setUrl] = useState("");
+  const [useAI, setUseAI] = useState(true);
   
   // Scraper progress state
   const [progress, setProgress] = useState<CloneProgress>({
@@ -90,16 +91,20 @@ export function FunnelClonerModal({ open, onClose }: FunnelClonerModalProps) {
 
     addLog("🔌 Estabelecendo conexão segura com o cloner...");
     addLog(`🔍 Analisando URL: ${url}`);
-    addLog("🤖 IA Vision nativa ativada para leitura visual do funil");
+    if (useAI) {
+      addLog("🤖 IA Vision nativa ativada para leitura visual do funil");
+    } else {
+      addLog("⚡ Modo rápido sem IA ativado (leitura puramente baseada no DOM)");
+    }
 
     try {
-      // Step 1: Execute scraping and analysis (uses built-in Lovable AI — no user keys)
+      // Step 1: Execute scraping and analysis
       const resultFunnel = await cloneFunnel(url, (p: CloneProgress) => {
         setProgress(p);
         if (p.message) {
           addLog(`[SISTEMA] ${p.message}`);
         }
-      });
+      }, useAI);
 
       // Save funnel internally and start visual clicking simulation
       setTempFunnel(resultFunnel);
@@ -108,7 +113,7 @@ export function FunnelClonerModal({ open, onClose }: FunnelClonerModalProps) {
       setCursorPos({ x: 50, y: 50 });
       setCursorClicking(false);
       
-      addLog(`✨ Cópia da estrutura concluída pela IA. Cores identificadas: Primária (${resultFunnel.primaryColor})`);
+      addLog(`✨ Cópia da estrutura concluída. Cores identificadas: Primária (${resultFunnel.primaryColor})`);
       addLog(`🎬 Iniciando validação e simulação de clique em ${resultFunnel.steps.length} etapas detectadas...`);
 
     } catch (err) {
@@ -117,7 +122,7 @@ export function FunnelClonerModal({ open, onClose }: FunnelClonerModalProps) {
       addLog(`❌ ERRO: ${msg}`);
       setProgress({ stage: "error", message: msg, percent: 0 });
     }
-  }, [url, addLog]);
+  }, [url, useAI, addLog]);
 
   // Simulation Loop
   useEffect(() => {
@@ -159,7 +164,7 @@ export function FunnelClonerModal({ open, onClose }: FunnelClonerModalProps) {
     const nextTimeout = setTimeout(() => {
       setCursorClicking(false);
       setSimulatedSteps((prev) => [...prev, currentStep]);
-      addLog(`✅ Elementos copiados com precisão pixel-perfect na etapa: "${currentStep.title}"`);
+      addLog(`✅ Elementos copiados com precisão na etapa: "${currentStep.title}"`);
       
       if (activeSimStepIdx + 1 < tempFunnel.steps.length) {
         setActiveSimStepIdx((prev) => prev + 1);
@@ -169,7 +174,7 @@ export function FunnelClonerModal({ open, onClose }: FunnelClonerModalProps) {
         setIsSimulating(false);
         setFunnel(tempFunnel);
         setProgress({ stage: "done", message: "Clonagem Concluída com Sucesso!", percent: 100 });
-        addLog("🎉 CÓPIA PIXEL-PERFECT FINALIZADA! O funil original foi completamente reproduzido.");
+        addLog("🎉 CÓPIA FINALIZADA! O funil original foi completamente reproduzido.");
       }
     }, 1800);
 
@@ -241,7 +246,7 @@ export function FunnelClonerModal({ open, onClose }: FunnelClonerModalProps) {
                 {/* Simulated Cursor Overlay */}
                 {isSimulating && (
                   <div 
-                    className="absolute pointer-events-none transition-all duration-700 ease-out z-50 flex flex-col items-center gap-1"
+                    className="absolute pointer-events-none pointer-events-none transition-all duration-700 ease-out z-50 flex flex-col items-center gap-1"
                     style={{ 
                       left: `${cursorPos.x}%`, 
                       top: `${cursorPos.y}%`,
@@ -329,8 +334,26 @@ export function FunnelClonerModal({ open, onClose }: FunnelClonerModalProps) {
                   />
                 </div>
 
+                <div className="space-y-2 p-3 bg-zinc-950/60 border border-zinc-850 rounded-xl">
+                  <Label className="text-xs font-semibold text-zinc-300 flex items-center gap-1.5">
+                    ⚙️ Configurações da Clonagem
+                  </Label>
+                  <div className="flex items-center justify-between text-xs text-zinc-400 py-1.5">
+                    <div className="space-y-0.5">
+                      <p className="font-semibold text-zinc-200">Usar Inteligência Artificial</p>
+                      <p className="text-[10px] text-zinc-500">Bypass IA para clonar infinitamente sem gastar tokens</p>
+                    </div>
+                    <input 
+                      type="checkbox"
+                      checked={useAI}
+                      onChange={(e) => setUseAI(e.target.checked)}
+                      className="h-4 w-4 accent-violet-500 rounded cursor-pointer"
+                    />
+                  </div>
+                </div>
+
                 <p className="text-xs text-zinc-400 bg-zinc-950/40 border border-zinc-800 rounded-lg p-2.5">
-                  A clonagem usa IA Vision nativa para abrir o link, capturar screenshots, ler textos, botões, imagens e montar as etapas no construtor.
+                  A clonagem nativa abre o link, captura a estrutura de tags do DOM, lê textos, botões e imagens e monta o funil instantaneamente.
                 </p>
               </div>
             ) : (

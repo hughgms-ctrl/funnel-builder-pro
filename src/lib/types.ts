@@ -16,16 +16,17 @@ export type ComponentType =
   | "timer"
   | "compare"
   | "video"
-  | "plans";
+  | "plans"
+  | "progress-chart";
 
 export interface OptionItem {
   id: string;
   label: string;
   image?: string;
-  nextStepId?: string; // conditional branching
-  score?: number;      // scoring for this option
-  idName?: string;     // optional variable value to store when selected
-  href?: string;       // external redirect / checkout link
+  nextStepId?: string;
+  score?: number;
+  idName?: string;
+  href?: string;
   openInNewTab?: boolean;
 }
 
@@ -34,7 +35,7 @@ export interface CaptureField {
   type: "text" | "email" | "tel";
   label: string;
   required?: boolean;
-  idName?: string;     // variable identifier (e.g., 'nome', 'peso')
+  idName?: string;
 }
 
 export interface PlanItem {
@@ -46,8 +47,8 @@ export interface PlanItem {
   popular?: boolean;
   popularText?: string;
   nextStepId?: string;
-  href?: string;          // Payment link for this specific plan
-  openInNewTab?: boolean; // Open payment link in new tab
+  href?: string;
+  openInNewTab?: boolean;
 }
 
 export interface ComponentData {
@@ -63,8 +64,8 @@ export interface ComponentData {
   // button
   buttonText?: string;
   nextStepId?: string;
-  href?: string;          // External link URL (overrides nextStep navigation)
-  openInNewTab?: boolean; // Open link in new tab
+  href?: string;
+  openInNewTab?: boolean;
   // capture
   fields?: CaptureField[];
   // image
@@ -89,27 +90,39 @@ export interface ComponentData {
   height?: number;
   // charts
   chartData?: { label: string; value: number }[];
-  
-  // compare component (Antes/Depois)
+  // compare
   beforeImageUrl?: string;
   beforeLabel?: string;
   afterImageUrl?: string;
   afterLabel?: string;
-  
-  // video component
+  // video
   videoUrl?: string;
-
-  // plans component
+  // plans
   plans?: PlanItem[];
-  
-  // Advanced styling & logic (Inlead style)
-  aesthetic?: 'simple' | 'highlight' | 'emboss' | 'contrast';
-  borders?: 'medium' | 'large' | 'extra' | 'none';
-  width?: number; // e.g. 50 or 100
-  animation?: 'none' | 'pulsating' | 'auto-emboss';
+
+  // progress-chart (curva de progresso colorida)
+  chartDays?: number;         // Ex: 7
+  chartPosition?: number;     // 0-100, posição do "Você hoje"
+  chartLabels?: string[];     // Ex: ["Sem rotina","Começando","Estabelecida","Ideal"]
+  chartCurrentLabel?: string; // Ex: "Você hoje"
+  chartFutureLabel?: string;  // Ex: "Você daqui a X dias"
+  chartNote?: string;         // Ex: "Imagem meramente ilustrativa*"
+
+  // Text styling
+  fontSize?: number;
+  fontWeight?: "normal" | "medium" | "semibold" | "bold";
+  textColor?: string;
+  textAlign?: "left" | "center" | "right";
+  italic?: boolean;
+
+  // Advanced styling & logic
+  aesthetic?: "simple" | "highlight" | "emboss" | "contrast";
+  borders?: "medium" | "large" | "extra" | "none";
+  width?: number;
+  animation?: "none" | "pulsating" | "auto-emboss";
   fixedFooter?: boolean;
-  idName?: string;     // Variable name bound to this component (useful for Options)
-  displayRule?: string; // Conditional logic rule (e.g. '{{score}} == 10')
+  idName?: string;
+  displayRule?: string;
 }
 
 export interface Step {
@@ -119,7 +132,7 @@ export interface Step {
   showLogo: boolean;
   showProgress: boolean;
   showBack: boolean;
-  isSaleStep?: boolean; // Marks this step as a conversion/sale step
+  isSaleStep?: boolean;
 }
 
 export interface Funnel {
@@ -131,11 +144,13 @@ export interface Funnel {
   fontFamily: string;
   steps: Step[];
   // Publication & Integration
-  saleUrl?: string;          // Link do produto/checkout (fallback)
-  leadWebhookUrl?: string;   // Webhook para envio automático de leads
-  saleWebhookUrl?: string;   // Webhook para vendas/conversões
-  metaPixelId?: string;      // ID do Pixel da Meta (Facebook)
-  googleTagId?: string;      // Google Tag Manager ID
-  tiktokPixelId?: string;    // TikTok Pixel ID
-  supabaseEnabled?: boolean; // Salvar leads no Supabase
+  publishedSlug?: string;
+  publishedAt?: string;
+  saleUrl?: string;
+  leadWebhookUrl?: string;
+  saleWebhookUrl?: string;
+  metaPixelId?: string;
+  googleTagId?: string;
+  tiktokPixelId?: string;
+  supabaseEnabled?: boolean;
 }

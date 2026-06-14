@@ -309,6 +309,19 @@ function ComponentEditor({
               initialPrompt={data.alt || ""}
               onImageGenerated={(url) => onChange({ imageUrl: url })}
             />
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                const prompt = `Foto profissional de alta conversão para quiz online no nicho de "${funnel.name}". Descrição do elemento: ${data.alt || "Imagem ilustrativa principal"}. Estilo limpo, moderno, iluminação de estúdio, 8k.`;
+                navigator.clipboard.writeText(prompt);
+                toast.success("Prompt copiado para a área de transferência!");
+              }}
+              className="w-full text-xs flex items-center justify-center gap-1.5 mt-1 border-zinc-700 bg-zinc-900/20 text-zinc-300 hover:text-white"
+            >
+              📋 Copiar Prompt para Gerador Externo (Midjourney/ChatGPT)
+            </Button>
             <Field label="Alt">
               <Input value={data.alt || ""} onChange={(e) => onChange({ alt: e.target.value })} />
             </Field>
@@ -976,6 +989,55 @@ function ComponentEditor({
             </div>
           </>
         );
+      case "progress-chart":
+        return (
+          <>
+            <Field label="Quantidade de dias (chartDays)">
+              <Input
+                type="number"
+                value={data.chartDays ?? 7}
+                onChange={(e) => onChange({ chartDays: Number(e.target.value) })}
+              />
+            </Field>
+            <Field label="Posição 'Você hoje' % (chartPosition)">
+              <Input
+                type="number"
+                min={0}
+                max={100}
+                value={data.chartPosition ?? 40}
+                onChange={(e) => onChange({ chartPosition: Number(e.target.value) })}
+              />
+            </Field>
+            <Field label="Texto 'Você hoje' (chartCurrentLabel)">
+              <Input
+                value={data.chartCurrentLabel || ""}
+                onChange={(e) => onChange({ chartCurrentLabel: e.target.value })}
+                placeholder="Você hoje"
+              />
+            </Field>
+            <Field label="Texto 'Você amanhã' (chartFutureLabel)">
+              <Input
+                value={data.chartFutureLabel || ""}
+                onChange={(e) => onChange({ chartFutureLabel: e.target.value })}
+                placeholder="Você daqui a X dias"
+              />
+            </Field>
+            <Field label="Notas/Legenda (chartNote)">
+              <Input
+                value={data.chartNote || ""}
+                onChange={(e) => onChange({ chartNote: e.target.value })}
+                placeholder="Imagem meramente ilustrativa*"
+              />
+            </Field>
+            <Field label="Labels do Eixo X (um por linha)">
+              <Textarea
+                rows={4}
+                value={(data.chartLabels || ["Sem rotina", "Começando", "Estabelecida", "Ideal"]).join("\n")}
+                onChange={(e) => onChange({ chartLabels: e.target.value.split("\n").filter(Boolean) })}
+              />
+            </Field>
+          </>
+        );
       default:
         return null;
     }
@@ -1100,6 +1162,73 @@ function StyleEditor({
             />
           </div>
         </>
+      )}
+
+      {data.type === "text" && (
+        <div className="border-t pt-3 mt-3 space-y-3">
+          <Label className="text-xs uppercase tracking-wide text-muted-foreground font-semibold">Estilo de Texto</Label>
+          <div className="grid grid-cols-2 gap-2">
+            <div className="space-y-1">
+              <Label className="text-xs">Tamanho da Fonte (px)</Label>
+              <Input
+                type="number"
+                min={8}
+                max={72}
+                value={data.fontSize || 16}
+                onChange={(e) => onChange({ fontSize: Number(e.target.value) })}
+              />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">Peso da Fonte</Label>
+              <Select
+                value={data.fontWeight || "normal"}
+                onValueChange={(v) => onChange({ fontWeight: v as ComponentData["fontWeight"] })}
+              >
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="normal">Normal (400)</SelectItem>
+                  <SelectItem value="medium">Medium (500)</SelectItem>
+                  <SelectItem value="semibold">Semibold (600)</SelectItem>
+                  <SelectItem value="bold">Bold (700)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-2">
+            <div className="space-y-1">
+              <Label className="text-xs">Cor do Texto</Label>
+              <Input
+                type="color"
+                value={data.textColor || "#000000"}
+                onChange={(e) => onChange({ textColor: e.target.value })}
+                className="h-9 p-0.5 cursor-pointer"
+              />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">Alinhamento</Label>
+              <Select
+                value={data.textAlign || "center"}
+                onValueChange={(v) => onChange({ textAlign: v as ComponentData["textAlign"] })}
+              >
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="left">Esquerda</SelectItem>
+                  <SelectItem value="center">Centralizado</SelectItem>
+                  <SelectItem value="right">Direita</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <div className="flex items-center justify-between pt-1">
+            <span className="text-sm font-medium">Itálico</span>
+            <Switch
+              checked={!!data.italic}
+              onCheckedChange={(v) => onChange({ italic: v })}
+            />
+          </div>
+        </div>
       )}
     </div>
   );

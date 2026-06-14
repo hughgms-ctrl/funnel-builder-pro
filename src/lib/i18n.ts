@@ -89,6 +89,7 @@ const dict = {
       compare: "Antes/Depois",
       video: "Vídeo Resposta",
       plans: "Planos de Preço",
+      "progress-chart": "Gráfico de Progresso",
     },
   },
   en: {
@@ -176,6 +177,7 @@ const dict = {
       compare: "Before/After",
       video: "Video Answer",
       plans: "Price Plans",
+      "progress-chart": "Progress Chart",
     },
   },
 } as const;

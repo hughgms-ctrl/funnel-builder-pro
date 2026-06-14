@@ -178,7 +178,35 @@ export function QuizPreview({ funnel, startStepId, onExit, embedded }: Props) {
       script.src = `https://www.googletagmanager.com/gtm.js?id=${funnel.googleTagId}`;
       document.head.appendChild(script);
     }
-  }, [funnel.metaPixelId, funnel.googleTagId]);
+
+    if (funnel.tiktokPixelId && !document.getElementById('tiktok-pixel-script')) {
+      const script = document.createElement('script');
+      script.id = 'tiktok-pixel-script';
+      script.innerHTML = `
+        !function (w, d, t) {
+          w.TiktokSdkObject = t; var ttq = w[t] = w[t] || []; ttq.methods = ["page", "track", "identify", "instances", "debug", "on", "off", "once", "ready", "alias", "group", "enableCookie", "cleanCookie"];
+          ttq.setAndDefer = function (t, e) { t[e] = function () { t.push([e].concat(Array.prototype.slice.call(arguments, 0))) } }; for (var e = 0; e < ttq.methods.length; e++) ttq.setAndDefer(ttq, ttq.methods[e]);
+          ttq.instance = function (t) { for (var e = ttq._i[t] || [], n = 0; n < ttq.methods.length; n++) ttq.setAndDefer(e, ttq.methods[n]); return e }; ttq.load = function (e, n) {
+            var i = "https://analytics.tiktok.com/i18n/pixel/events.js"; ttq._i = ttq._i || {}, ttq._i[e] = [], ttq._i[e]._u = i, ttq._t = ttq._t || {}, ttq._t[e] = +new Date, ttq._o = ttq._o || {}, ttq._o[e] = n || {};
+            var o = d.createElement("script"); o.type = "text/javascript", o.async = !0, o.src = i; var a = d.getElementsByTagName("script")[0]; a.parentNode.insertBefore(o, a)
+          };
+          ttq.load('${funnel.tiktokPixelId}');
+          ttq.page();
+        }(window, document, 'ttq');
+      `;
+      document.head.appendChild(script);
+    }
+  }, [funnel.metaPixelId, funnel.googleTagId, funnel.tiktokPixelId]);
+
+  useEffect(() => {
+    // Track ViewContent on step transition
+    if (funnel.metaPixelId && typeof window !== 'undefined' && (window as any).fbq) {
+      (window as any).fbq('track', 'ViewContent', { content_name: step?.title, step_index: stepIndex });
+    }
+    if (funnel.tiktokPixelId && typeof window !== 'undefined' && (window as any).ttq) {
+      (window as any).ttq.track('PageView');
+    }
+  }, [stepId]);
 
   useEffect(() => {
     setStepId(startStepId || funnel.steps[0]?.id);
@@ -228,6 +256,10 @@ export function QuizPreview({ funnel, startStepId, onExit, embedded }: Props) {
       if (funnel.metaPixelId && typeof window !== 'undefined' && (window as any).fbq) {
         (window as any).fbq('track', 'Purchase', { currency: 'BRL', value: 0 });
       }
+      // Fire TikTok pixel CompletePayment event
+      if (funnel.tiktokPixelId && typeof window !== 'undefined' && (window as any).ttq) {
+        (window as any).ttq.track('CompletePayment', { value: 0, currency: 'BRL' });
+      }
     } else {
       if (funnel.leadWebhookUrl) {
         try {
@@ -242,6 +274,10 @@ export function QuizPreview({ funnel, startStepId, onExit, embedded }: Props) {
       // Fire Meta pixel lead event
       if (funnel.metaPixelId && typeof window !== 'undefined' && (window as any).fbq) {
         (window as any).fbq('track', 'Lead');
+      }
+      // Fire TikTok pixel SubmitForm/InitiateCheckout event
+      if (funnel.tiktokPixelId && typeof window !== 'undefined' && (window as any).ttq) {
+        (window as any).ttq.track('SubmitForm');
       }
     }
 
@@ -510,12 +546,21 @@ function RenderComponent({ data, funnel, variables, onAnswer, onSubmitCapture, f
   };
 
   switch (data.type) {
-    case "text":
+    case "text": {
+      const fwMap: Record<string, string> = { normal: "400", medium: "500", semibold: "600", bold: "700" };
+      const textStyle: React.CSSProperties = {
+        fontSize: data.fontSize ? `${data.fontSize}px` : undefined,
+        fontWeight: data.fontWeight ? fwMap[data.fontWeight] : undefined,
+        color: data.textColor || undefined,
+        textAlign: data.textAlign || "center",
+        fontStyle: data.italic ? "italic" : undefined,
+      };
       return (
-        <h2 className={`text-2xl font-bold text-center px-4 py-3 ${appliedStyles}`}>
+        <div className={`px-4 py-3 leading-snug ${appliedStyles}`} style={textStyle}>
           {parseTemplateText(data.text || "", variables)}
-        </h2>
+        </div>
       );
+    }
     case "alert": {
       const variantBg = {
         info: "bg-blue-50 border border-blue-200/50 text-blue-800 dark:bg-blue-950/20 dark:border-blue-900/40 dark:text-blue-200",
@@ -891,6 +936,75 @@ function RenderComponent({ data, funnel, variables, onAnswer, onSubmitCapture, f
           </div>
         </div>
       );
+    case "progress-chart": {
+      const days = data.chartDays ?? 7;
+      const pos = Math.min(100, Math.max(0, data.chartPosition ?? 40));
+      const labels = data.chartLabels ?? ["Sem rotina", "Come\u00e7ando", "Estabelecida", "Ideal"];
+      const currentLabel = data.chartCurrentLabel ?? "Voc\u00ea hoje";
+      const futureLabel = (data.chartFutureLabel ?? "Voc\u00ea daqui a X dias").replace("X", String(days));
+      const note = data.chartNote ?? "Imagem meramente ilustrativa*";
+
+      // SVG curve: quadratic bezier from (0,160) to (340,20) with CP at (170,160)
+      const W = 340; const H = 180;
+      // Position of "Você hoje" along the curve
+      const t = pos / 100;
+      // Bezier: P0=(0,160), P1=(170,160), P2=(340,20)
+      const bx = (1 - t) * (1 - t) * 0 + 2 * (1 - t) * t * 170 + t * t * W;
+      const by = (1 - t) * (1 - t) * 160 + 2 * (1 - t) * t * 160 + t * t * 20;
+
+      return (
+        <div className={`p-4 space-y-3 ${appliedStyles}`}>
+          <div className="relative w-full" style={{ maxWidth: 360, margin: "0 auto" }}>
+            <svg viewBox={`0 0 ${W} ${H}`} className="w-full" style={{ overflow: "visible" }}>
+              <defs>
+                <linearGradient id="chartGrad" x1="0" y1="0" x2="1" y2="0">
+                  <stop offset="0%" stopColor="#ef4444" />
+                  <stop offset="40%" stopColor="#eab308" />
+                  <stop offset="70%" stopColor="#84cc16" />
+                  <stop offset="100%" stopColor="#22c55e" />
+                </linearGradient>
+                {/* Grid lines */}
+              </defs>
+              {/* Grid */}
+              {[0, 1, 2, 3].map((i) => (
+                <line key={i} x1={i * (W / 3)} y1={0} x2={i * (W / 3)} y2={H}
+                  stroke="#e5e7eb" strokeWidth="1" strokeDasharray="4 4" />
+              ))}
+              {[0, 1, 2, 3].map((i) => (
+                <line key={i} x1={0} y1={i * (H / 3)} x2={W} y2={i * (H / 3)}
+                  stroke="#e5e7eb" strokeWidth="1" strokeDasharray="4 4" />
+              ))}
+              {/* Filled area under curve */}
+              <path
+                d={`M 0 ${H} Q 170 ${H} ${W} ${H} Z`}
+                fill="#f3f4f6" />
+              <path
+                d={`M 0 160 Q 170 160 ${W} 20 L ${W} ${H} L 0 ${H} Z`}
+                fill="url(#chartGrad)" opacity="0.18" />
+              {/* Curve line */}
+              <path
+                d={`M 0 160 Q 170 160 ${W} 20`}
+                fill="none" stroke="url(#chartGrad)" strokeWidth="3.5" strokeLinecap="round" />
+              {/* Future marker (top right) */}
+              <circle cx={W} cy={20} r={6} fill="white" stroke="#6b7280" strokeWidth="2" />
+              <rect x={W - 80} y={0} width={80} height={20} rx={10} fill="white" stroke="#d1d5db" strokeWidth="1" />
+              <text x={W - 40} y={14} textAnchor="middle" fontSize="10" fill="#374151" fontWeight="600">{futureLabel}</text>
+              {/* Current position marker */}
+              <circle cx={bx} cy={by} r={7} fill={primary} stroke="white" strokeWidth="2.5" />
+              <rect x={bx - 38} y={by - 30} width={76} height={22} rx={11} fill={primary} />
+              <text x={bx} y={by - 15} textAnchor="middle" fontSize="11" fill="white" fontWeight="700">{currentLabel}</text>
+            </svg>
+            {/* X-axis labels */}
+            <div className="flex justify-between mt-1 px-1">
+              {labels.map((l, i) => (
+                <span key={i} className="text-[10px] text-muted-foreground text-center" style={{ width: `${100 / labels.length}%` }}>{l}</span>
+              ))}
+            </div>
+          </div>
+          {note && <p className="text-[10px] text-muted-foreground text-center italic">{note}</p>}
+        </div>
+      );
+    }
     default:
       return null;
   }

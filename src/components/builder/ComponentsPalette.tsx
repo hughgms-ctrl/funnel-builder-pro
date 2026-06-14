@@ -41,6 +41,7 @@ const items: { type: ComponentType; icon: React.ComponentType<{ className?: stri
   { type: "compare", icon: Split },
   { type: "video", icon: Play },
   { type: "plans", icon: CreditCard },
+  { type: "progress-chart", icon: LineChart },
 ];
 
 export function ComponentsPalette() {
