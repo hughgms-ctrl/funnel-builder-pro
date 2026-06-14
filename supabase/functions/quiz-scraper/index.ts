@@ -31,7 +31,7 @@ serve(async (req) => {
 
     // Puppeteer code: navigate quiz step-by-step, capture screenshot + text at each step
     const puppeteerCode = `
-module.exports = async ({ page, context }) => {
+export default async function ({ page, context }) {
   const { url, maxSteps } = context;
   const steps = [];
   const seenHashes = new Set();
@@ -180,7 +180,7 @@ module.exports = async ({ page, context }) => {
       else if (body.querySelector('[class*="loading"], [class*="spinner"], [class*="carregand"]')) pageType = 'loading';
       else if (body.querySelector('[class*="price"], [class*="checkout"], [class*="plan"], [class*="valor"]')) pageType = 'offer';
       else if (body.querySelector('[class*="result"], [class*="score"], [class*="resultado"]')) pageType = 'result';
-      else if (buttons.some(b => ['começ', 'iniciar', 'start', 'quero', 'participar'].some(k => b.toLowerCase().includes(k)))) pageType = 'intro';
+      else if (buttons.some(b => ['começ', 'iniciar', 'start', 'quero', 'participar'].some(k => String(typeof b === 'string' ? b : b?.text || '').toLowerCase().includes(k)))) pageType = 'intro';
       else if (bodyText.includes('parabéns') || bodyText.includes('obrigado') || bodyText.includes('sucesso')) pageType = 'result';
 
       // Primary color from CSS vars
@@ -284,7 +284,7 @@ module.exports = async ({ page, context }) => {
   }
 
   return { steps, totalSteps: steps.length };
-};
+}
 `;
 
     // Try Browserless /function endpoint (v2 API)
