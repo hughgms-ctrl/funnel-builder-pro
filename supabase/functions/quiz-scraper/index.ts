@@ -47,7 +47,7 @@ export default async function ({ page, context }) {
 
   // Helper: wait for DOM to settle after a click (SPA transitions)
   async function waitForSettle(ms = 2500) {
-    await page.waitForTimeout(ms);
+    await new Promise(resolve => setTimeout(resolve, ms));
   }
 
   await page.setViewport({ width: 430, height: 932 }); // iPhone 14 Pro
