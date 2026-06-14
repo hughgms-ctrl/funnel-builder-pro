@@ -507,7 +507,7 @@ export function FunnelClonerModal({ open, onClose }: FunnelClonerModalProps) {
               {progress.stage === "idle" && (
                 <Button
                   size="sm"
-                  disabled={!url || isRunning || !hasAnyKey}
+                  disabled={!url || isRunning}
                   onClick={handleClone}
                   className="bg-gradient-to-r from-violet-600 to-pink-600 hover:from-violet-700 hover:to-pink-700 text-white shadow-md shadow-violet-600/10"
                 >
