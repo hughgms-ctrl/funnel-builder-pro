@@ -98,8 +98,8 @@ Return a JSON array of components. Each component is one of these types:
 - { "type": "capture", "title": "...", "fields": [{ "id": "rand8", "type": "text|email|tel", "label": "...", "required": true }], "buttonText": "..." }
 - { "type": "button", "buttonText": "..." }
 - { "type": "loading", "text": "...", "loadingDuration": 3 }
-- { "type": "price", "title": "...", "price": "R$ XX", "pricePeriod": "/único", "priceFeatures": ["..."], "buttonText": "..." }
-- { "type": "plans", "title": "...", "plans": [{ "id": "rand8", "name": "...", "originalPrice": "R$ XX", "promoPrice": "R$ XX", "period": "/mês", "popular": false }] }
+- { "type": "price", "title": "...", "price": "R$ XX", "pricePeriod": "/Ãºnico", "priceFeatures": ["..."], "buttonText": "..." }
+- { "type": "plans", "title": "...", "plans": [{ "id": "rand8", "name": "...", "originalPrice": "R$ XX", "promoPrice": "R$ XX", "period": "/mÃªs", "popular": false }] }
 - { "type": "testimonials", "title": "...", "testimonials": [{ "id": "rand8", "author": "...", "text": "..." }] }
 - { "type": "timer", "seconds": 600, "text": "Oferta expira em" }
 - { "type": "alert", "text": "...", "variant": "info" }
@@ -268,30 +268,62 @@ export default async function ({ page, context }) {
   const { url, maxSteps } = context;
   const steps = [];
   const seenHashes = new Set();
+  const seenUrls = new Set();
 
-  // Helper: simple hash of a string
+  // --- Helpers ---
   function hashStr(s) {
-    let h = 0;
-    for (let i = 0; i < Math.min(s.length, 500); i++) {
+    // Use full string hash, not just first 500 chars
+    let h = 5381;
+    for (let i = 0; i < s.length; i++) {
       h = (Math.imul(31, h) + s.charCodeAt(i)) | 0;
     }
-    return String(h);
+    return String(h >>> 0);
   }
 
-  // Helper: wait for DOM to settle after a click (SPA transitions)
-  async function waitForSettle(ms = 2500) {
+  async function waitForSettle(ms) {
     await new Promise(resolve => setTimeout(resolve, ms));
   }
 
-  await page.setViewport({ width: 430, height: 932 }); // iPhone 14 Pro
+  // Dispatch full React-compatible pointer + click sequence
+  async function reactClick(el) {
+    const rect = el.getBoundingClientRect();
+    const cx = rect.left + rect.width / 2;
+    const cy = rect.top + rect.height / 2;
+    const opts = { bubbles: true, cancelable: true, clientX: cx, clientY: cy, view: window };
+    el.dispatchEvent(new PointerEvent('pointerover', opts));
+    el.dispatchEvent(new PointerEvent('pointerenter', { ...opts, bubbles: false }));
+    el.dispatchEvent(new MouseEvent('mouseover', opts));
+    el.dispatchEvent(new MouseEvent('mouseenter', { ...opts, bubbles: false }));
+    el.dispatchEvent(new PointerEvent('pointerdown', opts));
+    el.dispatchEvent(new MouseEvent('mousedown', opts));
+    el.dispatchEvent(new PointerEvent('pointerup', opts));
+    el.dispatchEvent(new MouseEvent('mouseup', opts));
+    el.dispatchEvent(new MouseEvent('click', opts));
+    el.click();
+  }
+
+  await page.setViewport({ width: 430, height: 932 });
   await page.setUserAgent('Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1');
 
-  console.log('Navigating to:', url);
-  await page.goto(url, { waitUntil: 'networkidle0', timeout: 45000 });
-  await waitForSettle(4000); // Extra wait for SPA hydration
+  // Disable images to speed up loading
+  await page.setRequestInterception(true);
+  page.on('request', req => {
+    if (['image', 'font', 'media'].includes(req.resourceType()) && req.url().includes('cdn')) {
+      req.abort();
+    } else {
+      req.continue();
+    }
+  });
 
-  const CLICK_SELECTORS = [
-    // Common quiz option wrappers
+  console.log('Navigating to:', url);
+  try {
+    await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 40000 });
+  } catch(e) {
+    await page.goto(url, { waitUntil: 'load', timeout: 30000 });
+  }
+  await waitForSettle(4000);
+
+  const OPTION_SELECTORS = [
     '[class*="option-background"]',
     '[class*="option_background"]',
     '[class*="optionBackground"]',
@@ -311,78 +343,49 @@ export default async function ({ page, context }) {
     '[data-answer]',
     '[data-quiz-option]',
     '[role="radio"]',
-    '[role="option"]',
-    // Inlead specific
     '[class*="alternativa"]',
     '[class*="opcao"]',
+    // Generic list items that might be options
+    'li[class*="item"]',
+    'li[class*="option"]',
   ];
 
   const CTA_KEYWORDS = [
-    'próx', 'proximo', 'continuar', 'avançar', 'prosseguir',
-    'next', 'continue', 'proceed', 'start', 'iniciar', 'começ',
-    'ver resultado', 'quero', 'enviar', 'submit', 'confirmar', 'ok',
-    'ir para', 'acessar', 'cadastrar', 'participar',
+    'prÃ³x', 'proximo', 'prÃ³ximo', 'continuar', 'avanÃ§ar', 'prosseguir',
+    'next', 'continue', 'proceed', 'start', 'iniciar', 'comeÃ§',
+    'ver result', 'quero', 'enviar', 'submit', 'confirmar', 'ok',
+    'ir para', 'acessar', 'cadastrar', 'participar', 'ver meu',
   ];
 
-  for (let stepNum = 0; stepNum < maxSteps; stepNum++) {
-    // Capture screenshot
-    let screenshotBase64 = '';
-    try {
-      screenshotBase64 = await page.screenshot({
-        encoding: 'base64',
-        type: 'jpeg',
-        quality: 80,
-        fullPage: false,
-        clip: { x: 0, y: 0, width: 430, height: 932 },
-      });
-    } catch (e) {
-      screenshotBase64 = '';
-    }
-
-    // Extract step content
-    const stepContent = await page.evaluate(() => {
+  async function extractContent() {
+    return await page.evaluate((OPTION_SELECTORS) => {
       const body = document.body;
       const allText = body.innerText?.trim() || '';
 
-      // Title: try multiple strategies
       const titleEl = body.querySelector('h1') || body.querySelector('h2')
         || body.querySelector('[class*="title"]') || body.querySelector('[class*="question"]')
-        || body.querySelector('[class*="heading"]') || body.querySelector('[class*="pergunta"]');
+        || body.querySelector('[class*="heading"]') || body.querySelector('[class*="pergunta"]')
+        || body.querySelector('[class*="titulo"]');
       const title = titleEl?.innerText?.trim() || '';
 
       const subtitleEl = body.querySelector('[class*="subtitle"]') || body.querySelector('[class*="description"]')
-        || body.querySelector('[class*="subheading"]');
+        || body.querySelector('[class*="subheading"]') || body.querySelector('[class*="subtitulo"]');
       const subtitle = subtitleEl?.innerText?.trim() || '';
 
-      // Options: wide selector sweep
-      const optSelectors = [
-        '[class*="option-background"]', '[class*="option_background"]', '[class*="optionBackground"]',
-        '[class*="option-button"]', '[class*="option_button"]',
-        '[class*="option-card"]', '[class*="option_card"]',
-        '[class*="answer-button"]', '[class*="answer_button"]',
-        '[class*="quiz-option"]', '[class*="quiz_option"]', '[class*="quizOption"]',
-        '[class*="choice-item"]', '[class*="choice-button"]',
-        '[data-option]', '[data-answer]',
-        '[role="radio"]', '[role="option"]',
-        '[class*="alternativa"]', '[class*="opcao"]',
-      ];
-
       let options = [];
-      for (const sel of optSelectors) {
+      for (const sel of OPTION_SELECTORS) {
         const els = Array.from(body.querySelectorAll(sel));
-        if (els.length > 0) {
+        if (els.length >= 2) { // At least 2 options = real choice screen
           options = els.map(el => ({
             text: el.innerText?.trim() || '',
             hasImage: el.querySelector('img') !== null,
             imageUrl: el.querySelector('img')?.src || '',
             href: el.closest('a[href]')?.href || el.querySelector('a[href]')?.href || '',
-            selector: sel,
           })).filter(o => o.text.length > 0 && o.text.length < 200);
-          if (options.length > 0) break;
+          if (options.length >= 2) break;
         }
       }
 
-      // Inputs
       const inputs = Array.from(body.querySelectorAll(
         'input[type="text"], input[type="email"], input[type="tel"], input[type="number"], input:not([type])'
       )).filter(el => el.offsetParent !== null).map(el => ({
@@ -391,127 +394,206 @@ export default async function ({ page, context }) {
         name: el.getAttribute('name') || el.getAttribute('id') || '',
       }));
 
-      // Buttons
       const buttons = Array.from(body.querySelectorAll('button:not([disabled])'))
-        .filter(el => el.offsetParent !== null && el.innerText?.trim().length > 0 && el.innerText?.trim().length < 100)
+        .filter(el => el.offsetParent !== null && el.innerText?.trim().length > 0 && el.innerText?.trim().length < 120)
         .map(el => ({
           text: el.innerText?.trim(),
           href: el.closest('a[href]')?.href || el.querySelector('a[href]')?.href || '',
         }));
 
-      // Images
       const images = Array.from(body.querySelectorAll('img'))
         .filter(img => img.offsetParent !== null && img.src && !img.src.startsWith('data:') && img.width > 30)
         .slice(0, 6)
         .map(img => ({ src: img.src, alt: img.alt || '' }));
 
-      // Page type detection
-      let pageType = 'unknown';
       const bodyText = allText.toLowerCase();
-      if (options.length > 0) pageType = 'options';
+      let pageType = 'unknown';
+      if (options.length >= 2) pageType = 'options';
       else if (inputs.length > 0) pageType = 'capture';
-      else if (body.querySelector('[class*="loading"], [class*="spinner"], [class*="carregand"]')) pageType = 'loading';
-      else if (body.querySelector('[class*="price"], [class*="checkout"], [class*="plan"], [class*="valor"]')) pageType = 'offer';
+      else if (body.querySelector('[class*="loading"], [class*="spinner"], [class*="carregand"], [class*="aguard"]')) pageType = 'loading';
+      else if (body.querySelector('[class*="price"], [class*="checkout"], [class*="plan"], [class*="valor"], [class*="oferta"]')) pageType = 'offer';
       else if (body.querySelector('[class*="result"], [class*="score"], [class*="resultado"]')) pageType = 'result';
-      else if (buttons.some(b => ['começ', 'iniciar', 'start', 'quero', 'participar'].some(k => String(typeof b === 'string' ? b : b?.text || '').toLowerCase().includes(k)))) pageType = 'intro';
-      else if (bodyText.includes('parabéns') || bodyText.includes('obrigado') || bodyText.includes('sucesso')) pageType = 'result';
+      else if (bodyText.includes('parabÃ©ns') || bodyText.includes('obrigado') || bodyText.includes('sucesso')) pageType = 'result';
+      else if (buttons.some(b => ['comeÃ§', 'iniciar', 'start', 'quero', 'participar'].some(k => (b?.text || '').toLowerCase().includes(k)))) pageType = 'intro';
 
-      // Primary color from CSS vars
       const cs = window.getComputedStyle(document.documentElement);
       const primaryColor = cs.getPropertyValue('--theme-highlight-color')?.trim()
         || cs.getPropertyValue('--primary')?.trim()
         || cs.getPropertyValue('--color-primary')?.trim()
         || '#7c3aed';
 
-      return {
-        allText: allText.slice(0, 3000),
-        title,
-        subtitle,
-        options,
-        inputs,
-        buttons,
-        images,
-        pageType,
-        primaryColor,
-        url: window.location.href,
-      };
-    });
+      return { allText: allText.slice(0, 5000), title, subtitle, options, inputs, buttons, images, pageType, primaryColor, url: window.location.href };
+    }, OPTION_SELECTORS);
+  }
 
-    // Deduplication: skip if we've seen this exact content
-    const contentHash = hashStr(stepContent.allText);
+  for (let stepNum = 0; stepNum < maxSteps; stepNum++) {
+    let stepContent = await extractContent();
+
+    // --- Deduplication: use URL + content hash ---
+    const currentUrl = stepContent.url;
+    // Only hash meaningful content (title + options text, not the full allText which may include nav/footer)
+    const fingerprint = stepContent.title + '|||' + stepContent.options.map(o => o.text).join('|') + '|||' + stepContent.pageType;
+    const contentHash = hashStr(fingerprint);
+
     if (steps.length > 0 && seenHashes.has(contentHash)) {
-      console.log('Duplicate content at step', stepNum, '— stopping');
-      break;
+      console.log('Duplicate content at step', stepNum + 1, 'â€” waiting 4s...');
+      await waitForSettle(4000);
+      stepContent = await extractContent();
+      const newFingerprint = stepContent.title + '|||' + stepContent.options.map(o => o.text).join('|') + '|||' + stepContent.pageType;
+      const newHash = hashStr(newFingerprint);
+      if (seenHashes.has(newHash)) {
+        console.log('Still duplicate â€” crawler stopped.');
+        break;
+      }
+      seenHashes.add(newHash);
+    } else {
+      seenHashes.add(contentHash);
     }
-    seenHashes.add(contentHash);
+
+    seenUrls.add(currentUrl);
+
+    // Take screenshot
+    let screenshotBase64 = '';
+    try {
+      screenshotBase64 = await page.screenshot({
+        encoding: 'base64', type: 'jpeg', quality: 75,
+        fullPage: false, clip: { x: 0, y: 0, width: 430, height: 932 },
+      });
+    } catch(e) { screenshotBase64 = ''; }
 
     steps.push({
       stepNumber: stepNum + 1,
       screenshot: 'data:image/jpeg;base64,' + screenshotBase64,
       content: stepContent,
-      debug: { contentHash, stepNum },
     });
 
-    console.log('Step', stepNum + 1, ':', stepContent.pageType, '—', stepContent.title || stepContent.allText.slice(0, 60));
+    console.log('âœ… Step', stepNum + 1, '[' + stepContent.pageType + ']', stepContent.title.slice(0, 60) || stepContent.allText.slice(0, 60));
 
-    // Stop at offer/result
+    // Stop at terminal pages
     if (stepContent.pageType === 'offer' || stepContent.pageType === 'result') {
-      console.log('Terminal page reached');
+      console.log('ðŸ Terminal page â€” stopping.');
       break;
     }
 
-    // — NAVIGATION STRATEGY —
-    // 1) Try clicking a quiz option
+    // --- Auto-fill inputs before clicking ---
+    if (stepContent.inputs.length > 0) {
+      await page.evaluate(() => {
+        const inputs = Array.from(document.querySelectorAll('input:not([type="hidden"]):not([type="submit"]):not([type="radio"]):not([type="checkbox"]):not([type="button"])'));
+        for (const input of inputs) {
+          if (!input.offsetParent) continue;
+          const t = (input.getAttribute('type') || 'text').toLowerCase();
+          const n = (input.getAttribute('name') || input.getAttribute('id') || '').toLowerCase();
+          const p = (input.getAttribute('placeholder') || '').toLowerCase();
+          if (t === 'email' || n.includes('email') || p.includes('email')) input.value = 'teste@email.com';
+          else if (t === 'tel' || n.includes('tel') || n.includes('fone') || n.includes('whatsapp') || n.includes('celular') || p.includes('whatsapp') || p.includes('celular')) input.value = '11999999999';
+          else if (n.includes('nome') || n.includes('name') || p.includes('nome')) input.value = 'Teste Silva';
+          else input.value = 'teste';
+          input.dispatchEvent(new Event('input', { bubbles: true }));
+          input.dispatchEvent(new Event('change', { bubbles: true }));
+        }
+        // Auto-check checkboxes (terms, etc.)
+        Array.from(document.querySelectorAll('input[type="checkbox"]')).forEach(cb => {
+          if (cb.offsetParent && !cb.checked) { cb.click(); cb.checked = true; cb.dispatchEvent(new Event('change', { bubbles: true })); }
+        });
+      });
+      await waitForSettle(500);
+    }
+
+    // --- Navigation: Click option OR CTA ---
     let clickedSomething = false;
 
-    const clickResult = await page.evaluate((CLICK_SELECTORS) => {
-      for (const sel of CLICK_SELECTORS) {
-        const el = document.querySelector(sel);
-        if (el && el.offsetParent !== null) {
-          el.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+    // 1) Try clicking the first visible quiz option
+    if (stepContent.options.length > 0) {
+      const clicked = await page.evaluate(async (OPTION_SELECTORS) => {
+        function fullClick(el) {
+          const rect = el.getBoundingClientRect();
+          const cx = rect.left + rect.width / 2;
+          const cy = rect.top + rect.height / 2;
+          const opts = { bubbles: true, cancelable: true, clientX: cx, clientY: cy, view: window };
+          ['pointerover','pointerenter','mouseover','mouseenter','pointerdown','mousedown','pointerup','mouseup','click'].forEach(evtName => {
+            const isEnter = evtName.includes('enter');
+            el.dispatchEvent(evtName.startsWith('pointer') ? new PointerEvent(evtName, { ...opts, bubbles: !isEnter }) : new MouseEvent(evtName, { ...opts, bubbles: !isEnter }));
+          });
           el.click();
-          return { clicked: true, type: 'option', text: el.innerText?.trim() || '', selector: sel };
         }
-      }
-      return { clicked: false };
-    }, CLICK_SELECTORS);
-
-    if (clickResult.clicked) {
-      clickedSomething = true;
-      console.log('Clicked option:', clickResult.text, 'via', clickResult.selector);
-      await waitForSettle(2500);
-    } else {
-      // 2) Try clicking a CTA button
-      const ctaResult = await page.evaluate((CTA_KEYWORDS) => {
-        const allButtons = Array.from(document.querySelectorAll('button:not([disabled]), [role="button"]:not([disabled]), a[href]'))
-          .filter(el => el.offsetParent !== null);
-        for (const btn of allButtons) {
-          const text = btn.innerText?.toLowerCase() || btn.getAttribute('aria-label')?.toLowerCase() || '';
-          if (CTA_KEYWORDS.some(k => text.includes(k))) {
-            btn.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
-            btn.click();
-            return { clicked: true, text: btn.innerText?.trim() || '' };
+        for (const sel of OPTION_SELECTORS) {
+          const els = Array.from(document.querySelectorAll(sel)).filter(e => e.offsetParent !== null);
+          if (els.length >= 2) {
+            fullClick(els[0]);
+            return { sel, text: els[0].innerText?.trim() || '' };
           }
         }
-        // Fallback: click first visible button
-        if (allButtons.length > 0) {
-          const first = allButtons[0];
-          first.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
-          first.click();
-          return { clicked: true, text: first.innerText?.trim() || 'first-button', fallback: true };
+        return null;
+      }, OPTION_SELECTORS);
+
+      if (clicked) {
+        clickedSomething = true;
+        console.log('ðŸ‘† Clicked option:', clicked.text.slice(0, 40), 'via', clicked.sel);
+        await waitForSettle(800);
+
+        // After clicking option, look for "Next/Continue" CTA
+        const ctaClicked = await page.evaluate((CTA_KEYWORDS) => {
+          function fullClick(el) {
+            const rect = el.getBoundingClientRect();
+            const cx = rect.left + rect.width / 2; const cy = rect.top + rect.height / 2;
+            const opts = { bubbles: true, cancelable: true, clientX: cx, clientY: cy, view: window };
+            ['pointerdown','mousedown','pointerup','mouseup','click'].forEach(e => el.dispatchEvent(e.startsWith('pointer') ? new PointerEvent(e,opts) : new MouseEvent(e,opts)));
+            el.click();
+          }
+          const btns = Array.from(document.querySelectorAll('button:not([disabled]), [role="button"]:not([disabled])'))
+            .filter(e => e.offsetParent !== null);
+          for (const btn of btns) {
+            const txt = (btn.innerText || btn.getAttribute('aria-label') || '').toLowerCase();
+            if (CTA_KEYWORDS.some(k => txt.includes(k))) { fullClick(btn); return btn.innerText?.trim(); }
+          }
+          return null;
+        }, CTA_KEYWORDS);
+
+        if (ctaClicked) {
+          console.log('ðŸ‘† Also clicked CTA:', ctaClicked);
+          await waitForSettle(2500);
+        } else {
+          await waitForSettle(2000);
         }
-        return { clicked: false };
+      }
+    }
+
+    // 2) No option found â€” try CTA (intro screen, loading, etc.)
+    if (!clickedSomething) {
+      const ctaResult = await page.evaluate((CTA_KEYWORDS) => {
+        function fullClick(el) {
+          const rect = el.getBoundingClientRect();
+          const cx = rect.left + rect.width / 2; const cy = rect.top + rect.height / 2;
+          const opts = { bubbles: true, cancelable: true, clientX: cx, clientY: cy, view: window };
+          ['pointerdown','mousedown','pointerup','mouseup','click'].forEach(e => el.dispatchEvent(e.startsWith('pointer') ? new PointerEvent(e,opts) : new MouseEvent(e,opts)));
+          el.click();
+        }
+        const btns = Array.from(document.querySelectorAll('button:not([disabled]), [role="button"]:not([disabled]), a[href]:not([href="#"]):not([href=""])'))
+          .filter(e => e.offsetParent !== null);
+        for (const btn of btns) {
+          const txt = (btn.innerText || btn.getAttribute('aria-label') || '').toLowerCase();
+          if (CTA_KEYWORDS.some(k => txt.includes(k))) { fullClick(btn); return { text: btn.innerText?.trim(), type: 'keyword' }; }
+        }
+        if (btns.length > 0) { fullClick(btns[0]); return { text: btns[0].innerText?.trim() || 'first', type: 'fallback' }; }
+        return null;
       }, CTA_KEYWORDS);
 
-      if (ctaResult.clicked) {
+      if (ctaResult) {
         clickedSomething = true;
-        console.log('Clicked CTA:', ctaResult.text, ctaResult.fallback ? '(fallback)' : '');
+        console.log('ðŸ‘† Clicked CTA (' + ctaResult.type + '):', ctaResult.text?.slice(0, 40));
         await waitForSettle(3000);
       }
     }
 
+    // 3) Loading screen â€” just wait
+    if (!clickedSomething && stepContent.pageType === 'loading') {
+      console.log('â³ Loading screen â€” waiting 7s...');
+      await waitForSettle(7000);
+      clickedSomething = true;
+    }
+
     if (!clickedSomething) {
-      console.log('Nothing clickable found — stopping at step', stepNum + 1);
+      console.log('âš ï¸ Nothing clickable at step', stepNum + 1, 'â€” stopping.');
       break;
     }
   }
@@ -537,7 +619,7 @@ export default async function ({ page, context }) {
             code: puppeteerCode,
             context: { url, maxSteps },
           }),
-          signal: AbortSignal.timeout(150000), // 2.5 min — enough for 20 steps
+          signal: AbortSignal.timeout(240000), // 4 min — enough for 20+ steps
         });
         if (res.ok) break;
         lastErr = `${endpoint}: HTTP ${res.status} — ${await res.text().catch(() => "")}`;
