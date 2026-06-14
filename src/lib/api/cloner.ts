@@ -110,6 +110,64 @@ function normalizeComponents(components: any[], step: ScrapedStep): ComponentDat
   }) as ComponentData[];
 }
 
+function componentsFromScrape(step: ScrapedStep): ComponentData[] {
+  const content = step.content;
+  const components: ComponentData[] = [];
+
+  if (content.title && content.title !== content.allText) {
+    components.push({ id: uid(), type: "text", text: content.title });
+  }
+
+  const mainImage = content.images?.[0];
+  if (mainImage?.src) {
+    components.push({ id: uid(), type: "image", imageUrl: mainImage.src, alt: mainImage.alt || content.title || "Imagem do quiz" });
+  }
+
+  if (content.options?.length) {
+    components.push({
+      id: uid(),
+      type: "options",
+      title: content.title || "Escolha uma opção",
+      subtitle: content.subtitle,
+      columns: content.options.some((option) => option.imageUrl) ? 2 : 1,
+      options: content.options.map((option) => ({
+        id: uid(),
+        label: option.text,
+        image: option.imageUrl || undefined,
+        href: option.href || undefined,
+        openInNewTab: false,
+      })),
+    });
+  }
+
+  if (content.inputs?.length) {
+    components.push({
+      id: uid(),
+      type: "capture",
+      title: content.title || "Preencha seus dados",
+      fields: content.inputs.map((input) => ({
+        id: uid(),
+        type: input.type === "tel" || input.type === "email" ? input.type : "text",
+        label: input.placeholder || input.name || "Campo",
+        required: true,
+      })),
+      buttonText: typeof content.buttons?.[0] === "string" ? content.buttons[0] : content.buttons?.[0]?.text || "Continuar",
+    });
+  }
+
+  for (const button of content.buttons || []) {
+    const text = typeof button === "string" ? button : button.text;
+    const href = typeof button === "string" ? undefined : button.href;
+    if (text) components.push({ id: uid(), type: "button", buttonText: text, href, openInNewTab: false });
+  }
+
+  if (!components.length) {
+    components.push({ id: uid(), type: "text", text: content.allText.slice(0, 600) || `Etapa ${step.stepNumber}` });
+  }
+
+  return components;
+}
+
 export async function cloneFunnel(
   url: string,
   onProgress: ProgressCallback,
@@ -156,16 +214,10 @@ export async function cloneFunnel(
         context,
       });
       components = normalizeComponents(res.components || [], step);
+      if (!components.length) components = componentsFromScrape(step);
     } catch (err: any) {
       console.error(`Step ${i + 1} analysis failed:`, err.message);
-      // Fallback: simple text component
-      components = [
-        {
-          id: uid(),
-          type: "text",
-          text: step.content.title || step.content.allText.slice(0, 200) || `Etapa ${i + 1}`,
-        } as ComponentData,
-      ];
+      components = componentsFromScrape(step);
     }
 
     analyzedSteps.push({
