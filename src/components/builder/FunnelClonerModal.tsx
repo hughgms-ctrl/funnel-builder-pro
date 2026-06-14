@@ -18,7 +18,6 @@ import {
   Loader2,
   ChevronRight,
   Copy,
-  Zap,
   Terminal,
   Globe,
   MousePointer,
@@ -41,11 +40,9 @@ const STAGES = [
 ] as const;
 
 export function FunnelClonerModal({ open, onClose }: FunnelClonerModalProps) {
-  const apiKeys = useFunnelStore((s) => s.apiKeys);
   const setFunnel = useFunnelStore((s) => s.setFunnel);
 
   const [url, setUrl] = useState("");
-  const [provider, setProvider] = useState<"openai" | "anthropic">("openai");
   
   // Scraper progress state
   const [progress, setProgress] = useState<CloneProgress>({
@@ -66,10 +63,6 @@ export function FunnelClonerModal({ open, onClose }: FunnelClonerModalProps) {
   const [logs, setLogs] = useState<string[]>([]);
   
   const terminalEndRef = useRef<HTMLDivElement>(null);
-
-  const hasOpenAI = !!apiKeys.openai;
-  const hasAnthropic = !!apiKeys.anthropic;
-  const hasAnyKey = hasOpenAI || hasAnthropic;
 
   const isRunning =
     progress.stage !== "idle" && progress.stage !== "done" && progress.stage !== "error";
@@ -97,7 +90,7 @@ export function FunnelClonerModal({ open, onClose }: FunnelClonerModalProps) {
 
     addLog("🔌 Estabelecendo conexão segura com o cloner...");
     addLog(`🔍 Analisando URL: ${url}`);
-    addLog(`🤖 Provedor de IA selecionado: ${provider === "openai" ? "OpenAI GPT-4o" : "Claude 3.5 Sonnet"}`);
+    addLog("🤖 IA Vision nativa ativada para leitura visual do funil");
 
     try {
       // Step 1: Execute scraping and analysis (uses built-in Lovable AI — no user keys)
@@ -124,7 +117,7 @@ export function FunnelClonerModal({ open, onClose }: FunnelClonerModalProps) {
       addLog(`❌ ERRO: ${msg}`);
       setProgress({ stage: "error", message: msg, percent: 0 });
     }
-  }, [url, provider, apiKeys, addLog]);
+  }, [url, addLog]);
 
   // Simulation Loop
   useEffect(() => {
