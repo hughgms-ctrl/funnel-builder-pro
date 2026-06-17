@@ -11,6 +11,7 @@ import { LeadsPanel } from "@/components/builder/LeadsPanel";
 import { FlowPanel } from "@/components/builder/FlowPanel";
 import { SettingsPanel } from "@/components/builder/SettingsPanel";
 import { FunnelClonerModal } from "@/components/builder/FunnelClonerModal";
+import { FunnelGeneratorModal } from "@/components/builder/FunnelGeneratorModal";
 import { QuizPreview } from "@/components/builder/QuizPreview";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/lib/auth";
@@ -26,6 +27,7 @@ import {
   LogOut,
   ChevronLeft,
   Save,
+  Copy,
 } from "lucide-react";
 
 type Tab = "builder" | "flow" | "design" | "leads" | "settings";
@@ -42,6 +44,7 @@ export function BuilderApp() {
   const [preview, setPreview] = useState(false);
   const [savedFlash, setSavedFlash] = useState(false);
   const [clonerOpen, setClonerOpen] = useState(false);
+  const [generatorOpen, setGeneratorOpen] = useState(false);
 
   const handleSave = () => {
     saveCurrentFunnel();
@@ -112,14 +115,25 @@ export function BuilderApp() {
 
         {/* Right: actions */}
         <div className="flex items-center gap-2">
+          {/* AI Generator Button */}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setGeneratorOpen(true)}
+            className="flex items-center gap-1.5 text-indigo-600 border-indigo-300 hover:bg-indigo-50 font-semibold"
+          >
+            <Sparkles className="h-3.5 w-3.5" />
+            Criar com IA
+          </Button>
+
           {/* Clone funnel button */}
           <Button
             variant="outline"
             size="sm"
             onClick={() => setClonerOpen(true)}
-            className="flex items-center gap-1.5 text-violet-600 border-violet-300 hover:bg-violet-50"
+            className="flex items-center gap-1.5 text-zinc-650 border-zinc-300 hover:bg-zinc-50"
           >
-            <Sparkles className="h-3.5 w-3.5" />
+            <Copy className="h-3.5 w-3.5" />
             Clonar Funil
           </Button>
 
@@ -197,6 +211,9 @@ export function BuilderApp() {
 
       {/* Cloner Modal */}
       <FunnelClonerModal open={clonerOpen} onClose={() => setClonerOpen(false)} />
+
+      {/* Generator Modal */}
+      <FunnelGeneratorModal open={generatorOpen} onClose={() => setGeneratorOpen(false)} />
     </div>
   );
 }

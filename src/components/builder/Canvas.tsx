@@ -23,82 +23,122 @@ export function Canvas() {
     );
   }
 
+  const selectedIndex = step.components.findIndex((c) => c.id === selectedComponentId);
+
+  const handleComponentClick = (componentId: string) => {
+    selectComponent(componentId);
+  };
+
+  const handleCanvasClick = () => {
+    // Clicking the canvas background deselects
+    selectComponent(null);
+  };
+
   return (
-    <div className="flex-1 overflow-y-auto bg-muted/30 p-6">
-      <div className="mx-auto max-w-xl bg-background rounded-xl shadow-sm border overflow-hidden">
+    <div className="flex-1 overflow-y-auto bg-muted/30 p-6" onClick={handleCanvasClick}>
+      {/* Floating action toolbar for selected component */}
+      {selectedComponentId && selectedIndex >= 0 && (
+        <div className="mx-auto max-w-xl mb-2 flex items-center justify-between bg-background border rounded-lg shadow-md px-3 py-1.5 text-xs gap-2 sticky top-2 z-30">
+          <span className="font-semibold text-primary">
+            {t.componentLabels[step.components[selectedIndex].type]}
+          </span>
+          <div className="flex items-center gap-1">
+            <ActionBtn
+              title="Mover para cima"
+              disabled={selectedIndex === 0}
+              onClick={(e) => {
+                e.stopPropagation();
+                if (selectedIndex > 0) moveComponent(step.id, selectedIndex, selectedIndex - 1);
+              }}
+            >
+              <ArrowUp className="h-3.5 w-3.5" />
+            </ActionBtn>
+            <ActionBtn
+              title="Mover para baixo"
+              disabled={selectedIndex >= step.components.length - 1}
+              onClick={(e) => {
+                e.stopPropagation();
+                if (selectedIndex < step.components.length - 1)
+                  moveComponent(step.id, selectedIndex, selectedIndex + 1);
+              }}
+            >
+              <ArrowDown className="h-3.5 w-3.5" />
+            </ActionBtn>
+            <ActionBtn
+              title="Duplicar"
+              onClick={(e) => {
+                e.stopPropagation();
+                duplicateComponent(step.id, selectedComponentId);
+              }}
+            >
+              <Copy className="h-3.5 w-3.5" />
+            </ActionBtn>
+            <ActionBtn
+              title="Deletar"
+              onClick={(e) => {
+                e.stopPropagation();
+                deleteComponent(step.id, selectedComponentId);
+              }}
+              danger
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+            </ActionBtn>
+          </div>
+        </div>
+      )}
+
+      {/* Interactive canvas — the preview IS the editor */}
+      <div
+        className="mx-auto max-w-xl bg-background rounded-xl shadow-sm border overflow-visible"
+        onClick={(e) => e.stopPropagation()}
+      >
         {step.components.length === 0 ? (
           <div className="grid place-items-center h-64 text-sm text-muted-foreground">
             {t.emptyCanvas}
           </div>
         ) : (
-          <div className="relative">
-            <QuizPreview funnel={funnel} startStepId={step.id} embedded />
-            {/* Overlay click targets per component */}
-            <div className="absolute inset-0 pointer-events-none">
-              {/* visual selection via separate render below */}
-            </div>
-          </div>
+          <QuizPreview
+            funnel={funnel}
+            startStepId={step.id}
+            embedded
+            onComponentClick={handleComponentClick}
+            selectedComponentId={selectedComponentId}
+          />
         )}
       </div>
 
-      {/* Editor list (clickable selection / actions) */}
-      <div className="mx-auto max-w-xl mt-4 space-y-1">
-        {step.components.map((c, i) => {
-          const active = c.id === selectedComponentId;
-          return (
-            <div
-              key={c.id}
-              onClick={() => selectComponent(c.id)}
-              className={`flex items-center justify-between gap-2 rounded-md border bg-background px-3 py-2 text-xs cursor-pointer ${
-                active ? "ring-2 ring-primary" : "hover:border-primary/40"
-              }`}
-            >
-              <span className="font-medium">{t.componentLabels[c.type]}</span>
-              <div className="flex items-center gap-1">
-                <IconBtn
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    if (i > 0) moveComponent(step.id, i, i - 1);
-                  }}
-                >
-                  <ArrowUp className="h-3 w-3" />
-                </IconBtn>
-                <IconBtn
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    if (i < step.components.length - 1) moveComponent(step.id, i, i + 1);
-                  }}
-                >
-                  <ArrowDown className="h-3 w-3" />
-                </IconBtn>
-                <IconBtn
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    duplicateComponent(step.id, c.id);
-                  }}
-                >
-                  <Copy className="h-3 w-3" />
-                </IconBtn>
-                <IconBtn
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    deleteComponent(step.id, c.id);
-                  }}
-                >
-                  <Trash2 className="h-3 w-3 text-destructive" />
-                </IconBtn>
-              </div>
-            </div>
-          );
-        })}
-      </div>
+      {/* Hint when nothing selected */}
+      {!selectedComponentId && step.components.length > 0 && (
+        <p className="mx-auto max-w-xl mt-4 text-center text-xs text-muted-foreground/60 select-none">
+          Clique em qualquer elemento para selecioná-lo e editar
+        </p>
+      )}
     </div>
   );
 }
 
-function IconBtn({ children, onClick }: { children: React.ReactNode; onClick: (e: React.MouseEvent) => void }) {
+function ActionBtn({
+  children,
+  onClick,
+  disabled,
+  title,
+  danger,
+}: {
+  children: React.ReactNode;
+  onClick: (e: React.MouseEvent) => void;
+  disabled?: boolean;
+  title?: string;
+  danger?: boolean;
+}) {
   return (
-    <button onClick={onClick} className="p-1 rounded hover:bg-accent">
+    <button
+      title={title}
+      disabled={disabled}
+      onClick={onClick}
+      className={`p-1.5 rounded hover:bg-accent disabled:opacity-30 transition-colors ${
+        danger ? "hover:text-destructive hover:bg-destructive/10" : ""
+      }`}
+    >
       {children}
     </button>
   );

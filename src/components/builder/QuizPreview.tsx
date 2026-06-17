@@ -12,6 +12,10 @@ interface Props {
   startStepId?: string;
   onExit?: () => void;
   embedded?: boolean;
+  /** Builder-mode: called when a component is clicked to select it */
+  onComponentClick?: (componentId: string) => void;
+  /** Builder-mode: the currently selected component id */
+  selectedComponentId?: string | null;
 }
 
 // Função utilitária para substituir variáveis {{var}} e avaliar cálculos matemáticos {{calc ...}}
@@ -141,7 +145,7 @@ function getComponentStyles(data: ComponentData, defaultBorder = "rounded-lg", d
   return `${borderClass} ${aestheticClass}`;
 }
 
-export function QuizPreview({ funnel, startStepId, onExit, embedded }: Props) {
+export function QuizPreview({ funnel, startStepId, onExit, embedded, onComponentClick, selectedComponentId }: Props) {
   const t = useT();
   const addLead = useFunnelStore((s) => s.addLead);
   const supabaseConfig = useFunnelStore((s) => s.supabaseConfig);
@@ -372,39 +376,74 @@ export function QuizPreview({ funnel, startStepId, onExit, embedded }: Props) {
   const renderedElements: any[] = [];
   let tempRow: ComponentData[] = [];
 
-  const RenderComponentWrapper = ({ c }: { c: ComponentData }) => (
-    <RenderComponent
-      data={c}
-      funnel={funnel}
-      step={step}
-      variables={variables}
-      fireLead={fireLead}
-      onAnswer={(value, nextStepId, scoreValue, optVarName) => {
-        if (scoreValue !== undefined) {
-          setComponentScores((s) => ({ ...s, [c.id]: scoreValue }));
-        } else {
-          setComponentScores((s) => ({ ...s, [c.id]: 0 }));
-        }
-        
-        setAnswers((a) => {
-          const nextAnswers = { ...a, [c.id]: value };
-          if (c.idName) nextAnswers[c.idName] = value;
-          if (optVarName) nextAnswers[optVarName] = value;
-          return nextAnswers;
-        });
-        
-        goNext(nextStepId);
-      }}
-      onSubmitCapture={(values, fieldVars, nextStepId) => {
-        setAnswers((a) => ({
-          ...a,
-          ...values,
-          ...fieldVars,
-        }));
-        goNext(nextStepId);
-      }}
-    />
-  );
+  const RenderComponentWrapper = ({ c }: { c: ComponentData }) => {
+    const isSelected = onComponentClick && selectedComponentId === c.id;
+    const isEditable = !!onComponentClick;
+
+    const inner = (
+      <RenderComponent
+        data={c}
+        funnel={funnel}
+        step={step}
+        variables={variables}
+        fireLead={fireLead}
+        onAnswer={(value, nextStepId, scoreValue, optVarName) => {
+          if (isEditable) {
+            // In builder mode — just select the component, don't navigate
+            onComponentClick(c.id);
+            return;
+          }
+          if (scoreValue !== undefined) {
+            setComponentScores((s) => ({ ...s, [c.id]: scoreValue }));
+          } else {
+            setComponentScores((s) => ({ ...s, [c.id]: 0 }));
+          }
+          setAnswers((a) => {
+            const nextAnswers = { ...a, [c.id]: value };
+            if (c.idName) nextAnswers[c.idName] = value;
+            if (optVarName) nextAnswers[optVarName] = value;
+            return nextAnswers;
+          });
+          goNext(nextStepId);
+        }}
+        onSubmitCapture={(values, fieldVars, nextStepId) => {
+          if (isEditable) {
+            onComponentClick(c.id);
+            return;
+          }
+          setAnswers((a) => ({
+            ...a,
+            ...values,
+            ...fieldVars,
+          }));
+          goNext(nextStepId);
+        }}
+      />
+    );
+
+    if (!isEditable) return inner;
+
+    return (
+      <div
+        onClick={(e) => { e.stopPropagation(); onComponentClick(c.id); }}
+        className={`relative group cursor-pointer transition-all duration-150 ${
+          isSelected
+            ? "ring-2 ring-primary ring-offset-1 rounded-lg"
+            : "hover:ring-2 hover:ring-primary/40 hover:ring-offset-1 rounded-lg"
+        }`}
+      >
+        {/* Interaction blocker: prevents form submits / link clicks in builder */}
+        <div className="absolute inset-0 z-10" />
+        {inner}
+        {/* Selection label */}
+        {isSelected && (
+          <div className="absolute -top-5 left-0 z-20 bg-primary text-white text-[10px] font-bold px-2 py-0.5 rounded-t-md select-none pointer-events-none">
+            {c.type}
+          </div>
+        )}
+      </div>
+    );
+  };
 
   const flushRow = () => {
     if (tempRow.length === 0) return;
