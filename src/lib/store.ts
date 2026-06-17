@@ -137,6 +137,7 @@ const componentDefaults = (type: ComponentType): ComponentData => {
         idName: "plano_selecionado",
       };
   }
+  return base;
 };
 
 const initialFunnel = (): Funnel => {
