@@ -15,6 +15,7 @@ import { Route as BuilderRouteImport } from './routes/builder'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as PagesIndexRouteImport } from './routes/pages.index'
 import { Route as PagesPageIdRouteImport } from './routes/pages.$pageId'
+import { Route as PSlugRouteImport } from './routes/p.$slug'
 
 const PagesRoute = PagesRouteImport.update({
   id: '/pages',
@@ -46,12 +47,18 @@ const PagesPageIdRoute = PagesPageIdRouteImport.update({
   path: '/$pageId',
   getParentRoute: () => PagesRoute,
 } as any)
+const PSlugRoute = PSlugRouteImport.update({
+  id: '/p/$slug',
+  path: '/p/$slug',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/builder': typeof BuilderRoute
   '/login': typeof LoginRoute
   '/pages': typeof PagesRouteWithChildren
+  '/p/$slug': typeof PSlugRoute
   '/pages/$pageId': typeof PagesPageIdRoute
   '/pages/': typeof PagesIndexRoute
 }
@@ -59,6 +66,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/builder': typeof BuilderRoute
   '/login': typeof LoginRoute
+  '/p/$slug': typeof PSlugRoute
   '/pages/$pageId': typeof PagesPageIdRoute
   '/pages': typeof PagesIndexRoute
 }
@@ -68,6 +76,7 @@ export interface FileRoutesById {
   '/builder': typeof BuilderRoute
   '/login': typeof LoginRoute
   '/pages': typeof PagesRouteWithChildren
+  '/p/$slug': typeof PSlugRoute
   '/pages/$pageId': typeof PagesPageIdRoute
   '/pages/': typeof PagesIndexRoute
 }
@@ -78,16 +87,18 @@ export interface FileRouteTypes {
     | '/builder'
     | '/login'
     | '/pages'
+    | '/p/$slug'
     | '/pages/$pageId'
     | '/pages/'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/builder' | '/login' | '/pages/$pageId' | '/pages'
+  to: '/' | '/builder' | '/login' | '/p/$slug' | '/pages/$pageId' | '/pages'
   id:
     | '__root__'
     | '/'
     | '/builder'
     | '/login'
     | '/pages'
+    | '/p/$slug'
     | '/pages/$pageId'
     | '/pages/'
   fileRoutesById: FileRoutesById
@@ -97,6 +108,7 @@ export interface RootRouteChildren {
   BuilderRoute: typeof BuilderRoute
   LoginRoute: typeof LoginRoute
   PagesRoute: typeof PagesRouteWithChildren
+  PSlugRoute: typeof PSlugRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -143,6 +155,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PagesPageIdRouteImport
       parentRoute: typeof PagesRoute
     }
+    '/p/$slug': {
+      id: '/p/$slug'
+      path: '/p/$slug'
+      fullPath: '/p/$slug'
+      preLoaderRoute: typeof PSlugRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -163,6 +182,7 @@ const rootRouteChildren: RootRouteChildren = {
   BuilderRoute: BuilderRoute,
   LoginRoute: LoginRoute,
   PagesRoute: PagesRouteWithChildren,
+  PSlugRoute: PSlugRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

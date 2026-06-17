@@ -22,9 +22,8 @@ export interface Page {
   id: string;
   name: string;
   slug: string;
-  blocks: Block[];
-  css: string;
-  meta: PageMeta;
+  html: string;
+  content: Record<string, string>;
   createdAt: number;
   updatedAt: number;
 }

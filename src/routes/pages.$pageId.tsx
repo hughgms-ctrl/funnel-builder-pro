@@ -1,14 +1,15 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useAuth } from "@/lib/auth";
-import { useEffect, useState } from "react";
-import { usePageStore } from "@/lib/page-store";
-import { findBlock, buildDocument } from "@/lib/page-html";
-import { CanvasFrame } from "@/components/pages/CanvasFrame";
-import { BlockPalette } from "@/components/pages/BlockPalette";
-import { LayersTree } from "@/components/pages/LayersTree";
-import { PropsPanel } from "@/components/pages/PropsPanel";
+import { useEffect, useState, useMemo } from "react";
+import { usePageStore, buildStandaloneHtml } from "@/lib/page-store";
+import { HtmlPage } from "@/components/pages/HtmlPage";
+import { AddElementsPanel } from "@/components/pages/AddElementsPanel";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Monitor, Tablet, Smartphone, Download, Eye, Loader2 } from "lucide-react";
+import { 
+  ArrowLeft, Monitor, Tablet, Smartphone, Download, Eye, Loader2,
+  RotateCcw, Link2, Check, Sparkles 
+} from "lucide-react";
+import { toast } from "sonner";
 
 export const Route = createFileRoute("/pages/$pageId")({
   component: PageEditor,
@@ -18,110 +19,192 @@ function PageEditor() {
   const { pageId } = Route.useParams();
   const { user, loading } = useAuth();
   const navigate = useNavigate();
+  
   const page = usePageStore((s) => s.pages.find((p) => p.id === pageId));
-  const addBlock = usePageStore((s) => s.addBlock);
-  const patchBlock = usePageStore((s) => s.patchBlock);
-  const removeBlock = usePageStore((s) => s.removeBlock);
-  const reorderBlock = usePageStore((s) => s.reorderBlock);
   const updatePage = usePageStore((s) => s.updatePage);
-  const selectedId = usePageStore((s) => s.selectedBlockId);
-  const selectBlock = usePageStore((s) => s.selectBlock);
+  
+  const [content, setContent] = useState<Record<string, string>>(page?.content ?? {});
   const [viewport, setViewport] = useState<"desktop" | "tablet" | "mobile">("desktop");
-  const [showCss, setShowCss] = useState(false);
+  const [mode, setMode] = useState<"edit" | "preview">("edit");
+  const [copied, setCopied] = useState(false);
+  const [savedAt, setSavedAt] = useState<number | null>(null);
 
-  useEffect(() => { if (!loading && !user) navigate({ to: "/login" }); }, [user, loading, navigate]);
-  useEffect(() => () => selectBlock(null), [selectBlock]);
+  // Auto-save overrides (debounced)
+  useEffect(() => {
+    if (!page) return;
+    const t = setTimeout(() => {
+      // Check if content actually changed to avoid loop
+      if (JSON.stringify(page.content) !== JSON.stringify(content)) {
+        updatePage(page.id, { content, updatedAt: Date.now() });
+        setSavedAt(Date.now());
+      }
+    }, 400);
+    return () => clearTimeout(t);
+  }, [content, page, updatePage]);
+
+  // Sync state if page changes externally
+  useEffect(() => {
+    if (page) {
+      setContent(page.content);
+    }
+  }, [pageId]);
 
   if (loading) return <div className="h-screen grid place-items-center bg-zinc-950"><Loader2 className="h-8 w-8 animate-spin text-violet-500" /></div>;
   if (!user) return null;
-  if (!page) return <div className="h-screen grid place-items-center bg-zinc-950 text-zinc-400">Página não encontrada. <Link to="/pages" className="text-violet-400 ml-2">Voltar</Link></div>;
+  if (!page) {
+    return (
+      <div className="h-screen grid place-items-center bg-zinc-950 text-zinc-400">
+        <div className="text-center">
+          <p className="mb-4">Página não encontrada.</p>
+          <Link to="/pages" className="text-violet-400 underline">Voltar para listagem</Link>
+        </div>
+      </div>
+    );
+  }
 
-  const selected = selectedId ? findBlock(page.blocks, selectedId) : null;
+  const publicUrl = `${typeof window !== "undefined" ? window.location.origin : ""}/p/${page.slug}`;
 
-  const handleExport = () => {
-    const doc = buildDocument(page.blocks, page.css, { title: page.meta.title });
-    const blob = new Blob([doc], { type: "text/html" });
+  const handleDownload = () => {
+    const standaloneHtml = buildStandaloneHtml({ ...page, content });
+    const blob = new Blob([standaloneHtml], { type: "text/html;charset=utf-8" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
-    a.href = url; a.download = `${page.slug || "page"}.html`; a.click();
+    a.href = url;
+    a.download = `${page.slug || "page"}.html`;
+    a.click();
     URL.revokeObjectURL(url);
+    toast.success("Arquivo HTML baixado com sucesso!");
   };
 
-  const handlePreview = () => {
-    const doc = buildDocument(page.blocks, page.css, { title: page.meta.title });
-    const w = window.open("", "_blank");
-    if (w) { w.document.write(doc); w.document.close(); }
+  const handleCopyLink = async () => {
+    try {
+      await navigator.clipboard.writeText(publicUrl);
+      setCopied(true);
+      toast.success("Link público copiado!");
+      setTimeout(() => setCopied(false), 1800);
+    } catch {
+      window.prompt("Copie o link:", publicUrl);
+    }
   };
+
+  const handleReset = () => {
+    if (!confirm("Restaurar conteúdo original da página? Todas as suas edições de textos e imagens nesta sessão serão perdidas.")) return;
+    setContent({});
+    updatePage(page.id, { content: {}, updatedAt: Date.now() });
+    toast.success("Conteúdo restaurado!");
+  };
+
+  const handleAddElementHtml = (htmlSnippet: string) => {
+    // Append the block to page's HTML
+    updatePage(page.id, { 
+      html: page.html + "\n" + htmlSnippet,
+      updatedAt: Date.now() 
+    });
+    toast.success("Elemento adicionado! Role até o fim para ver.");
+  };
+
+  // Dimensions of viewport classes
+  const viewportWidth = {
+    desktop: "w-full",
+    tablet: "w-[768px]",
+    mobile: "w-[375px]",
+  }[viewport];
 
   return (
     <div className="h-screen flex flex-col bg-zinc-950 text-zinc-100">
-      <header className="h-12 border-b border-zinc-800 px-4 flex items-center justify-between shrink-0">
-        <div className="flex items-center gap-3">
-          <Link to="/pages" className="text-zinc-400 hover:text-white flex items-center gap-1 text-sm"><ArrowLeft className="h-4 w-4" />Páginas</Link>
-          <span className="text-zinc-700">|</span>
+      <header className="h-14 border-b border-zinc-850 px-4 flex items-center justify-between shrink-0 bg-zinc-950/90 backdrop-blur z-40">
+        <div className="flex items-center gap-3 min-w-0">
+          <Button asChild size="sm" variant="ghost" className="text-zinc-400 hover:text-white hover:bg-zinc-900 shrink-0">
+            <Link to="/pages"><ArrowLeft className="h-4 w-4 mr-1" /> Páginas</Link>
+          </Button>
+          <span className="text-zinc-850">|</span>
           <input
-            className="bg-transparent text-sm font-semibold text-white px-2 py-1 rounded hover:bg-zinc-800 focus:bg-zinc-800 focus:outline-none"
+            className="bg-transparent text-sm font-semibold text-white px-2 py-1 rounded hover:bg-zinc-900 focus:bg-zinc-900 focus:outline-none truncate min-w-[150px] max-w-[300px]"
             value={page.name}
             onChange={(e) => updatePage(page.id, { name: e.target.value })}
+            placeholder="Nome da página"
           />
+          {savedAt && (
+            <span className="text-[10px] text-zinc-500 hidden sm:inline-block">
+              Salvo {new Date(savedAt).toLocaleTimeString("pt-BR")}
+            </span>
+          )}
         </div>
-        <div className="flex items-center gap-1 bg-zinc-900 rounded-lg p-0.5">
+
+        {/* Viewport controls */}
+        <div className="flex items-center gap-1 bg-zinc-900 border border-zinc-800 rounded-lg p-0.5">
           {[
-            { v: "desktop" as const, I: Monitor },
-            { v: "tablet" as const, I: Tablet },
-            { v: "mobile" as const, I: Smartphone },
-          ].map(({ v, I }) => (
-            <button key={v} onClick={() => setViewport(v)} className={`p-1.5 rounded ${viewport === v ? "bg-violet-500/20 text-violet-300" : "text-zinc-500"}`}>
+            { v: "desktop" as const, I: Monitor, label: "Desktop" },
+            { v: "tablet" as const, I: Tablet, label: "Tablet" },
+            { v: "mobile" as const, I: Smartphone, label: "Celular" },
+          ].map(({ v, I, label }) => (
+            <button 
+              key={v} 
+              onClick={() => setViewport(v)} 
+              title={label}
+              className={`p-1.5 rounded transition-all ${viewport === v ? "bg-violet-650 text-white shadow" : "text-zinc-500 hover:text-zinc-300"}`}
+            >
               <I className="h-3.5 w-3.5" />
             </button>
           ))}
         </div>
+
+        {/* Action Controls */}
         <div className="flex items-center gap-2">
-          <Button size="sm" variant="outline" onClick={() => setShowCss(!showCss)}>CSS</Button>
-          <Button size="sm" variant="outline" onClick={handlePreview}><Eye className="h-3.5 w-3.5 mr-1" />Preview</Button>
-          <Button size="sm" onClick={handleExport} className="bg-violet-600 hover:bg-violet-700 text-white"><Download className="h-3.5 w-3.5 mr-1" />Exportar</Button>
+          {/* Edit/Preview Toggle */}
+          <div className="inline-flex rounded-lg bg-zinc-900 border border-zinc-800 p-0.5 text-xs font-semibold mr-1.5">
+            <button
+              onClick={() => setMode("edit")}
+              className={`px-3 py-1 rounded-md transition ${mode === "edit" ? "bg-violet-650 text-white" : "text-zinc-400 hover:text-white"}`}
+            >Editar</button>
+            <button
+              onClick={() => setMode("preview")}
+              className={`px-3 py-1 rounded-md transition ${mode === "preview" ? "bg-violet-650 text-white" : "text-zinc-400 hover:text-white"}`}
+            >Preview</button>
+          </div>
+
+          <Button size="sm" variant="outline" onClick={handleReset} className="border-zinc-800 bg-transparent text-zinc-400 hover:bg-zinc-900 hover:text-white">
+            <RotateCcw className="h-3.5 w-3.5" />
+            <span className="hidden md:inline ml-1">Resetar</span>
+          </Button>
+
+          <Button size="sm" variant="outline" onClick={handleCopyLink} className="border-zinc-800 bg-transparent text-zinc-400 hover:bg-zinc-900 hover:text-white">
+            {copied ? <Check className="h-3.5 w-3.5" /> : <Link2 className="h-3.5 w-3.5" />}
+            <span className="hidden md:inline ml-1">{copied ? "Link Copiado" : "Copiar Link"}</span>
+          </Button>
+
+          <Button size="sm" onClick={handleDownload} className="bg-violet-600 hover:bg-violet-700 text-white font-semibold shadow">
+            <Download className="h-3.5 w-3.5 mr-1" /> Baixar HTML
+          </Button>
         </div>
       </header>
 
+      {/* Editing notice banner */}
+      {mode === "edit" && (
+        <div className="bg-violet-500/10 border-b border-violet-900/40 text-violet-300 text-xs px-4 py-1.5 text-center shrink-0">
+          ✨ Clique em qualquer texto para editar · Clique nas imagens para alterar · Todas as mudanças são salvas automaticamente
+        </div>
+      )}
+
       <div className="flex-1 flex overflow-hidden">
-        {/* Left: layers + palette */}
-        <aside className="w-64 border-r border-zinc-800 bg-zinc-950 flex flex-col">
-          <div className="p-3 border-b border-zinc-800">
-            <div className="text-[10px] uppercase tracking-wide text-zinc-500 font-semibold mb-2">Camadas</div>
-            <LayersTree
-              blocks={page.blocks}
-              selectedId={selectedId}
-              onSelect={selectBlock}
-              onDelete={(id) => removeBlock(page.id, id)}
-              onMove={(id, dir) => reorderBlock(page.id, id, dir)}
+        {/* Left Elements Sidebar - visible in edit mode */}
+        {mode === "edit" ? (
+          <aside className="w-80 border-r border-zinc-850 bg-zinc-950 shrink-0">
+            <AddElementsPanel onAdd={handleAddElementHtml} />
+          </aside>
+        ) : null}
+
+        {/* Center Canvas */}
+        <main className="flex-1 overflow-y-auto bg-zinc-900 flex justify-center p-4">
+          <div className={`transition-all duration-300 ${viewportWidth} shadow-2xl h-fit border border-zinc-850 rounded-xl bg-white text-zinc-900 overflow-hidden`}>
+            <HtmlPage
+              html={page.html}
+              content={content}
+              editable={mode === "edit"}
+              onChange={setContent}
             />
           </div>
-          <div className="p-3 flex-1 overflow-y-auto">
-            <div className="text-[10px] uppercase tracking-wide text-zinc-500 font-semibold mb-2">Adicionar bloco</div>
-            <BlockPalette onAdd={(b) => addBlock(page.id, b, null)} />
-          </div>
-        </aside>
-
-        {/* Canvas */}
-        <div className="flex-1 flex flex-col">
-          {showCss && (
-            <div className="border-b border-zinc-800 p-2 bg-zinc-900">
-              <textarea
-                className="w-full bg-zinc-950 border border-zinc-800 rounded p-2 text-xs font-mono text-zinc-300"
-                rows={6}
-                value={page.css}
-                onChange={(e) => updatePage(page.id, { css: e.target.value })}
-                placeholder="/* CSS global da página */"
-              />
-            </div>
-          )}
-          <CanvasFrame blocks={page.blocks} css={page.css} selectedId={selectedId} onSelect={selectBlock} viewport={viewport} />
-        </div>
-
-        {/* Right: props */}
-        <aside className="w-72 border-l border-zinc-800 bg-zinc-950">
-          <PropsPanel block={selected} onChange={(patch) => selectedId && patchBlock(page.id, selectedId, patch)} />
-        </aside>
+        </main>
       </div>
     </div>
   );

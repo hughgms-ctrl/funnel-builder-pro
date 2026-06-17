@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Sparkles, FileCode, FilePlus, Loader2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { generatePageWithAI } from "@/lib/api/page-generator-api";
-import { htmlToBlocks, extractCssFromHtml } from "@/lib/page-html";
+import { normalizeHtml } from "@/lib/page-store";
 import type { Page } from "@/lib/page-types";
 import { toast } from "sonner";
 
@@ -30,16 +30,12 @@ export function NewPageModal({ open, onClose, onCreate }: Props) {
       } else if (mode === "ai") {
         if (!prompt.trim()) { toast.error("Descreva a página"); return; }
         const r = await generatePageWithAI(prompt.trim());
-        const blocks = htmlToBlocks(r.html || "");
-        const extCss = extractCssFromHtml(r.html || "");
-        const combinedCss = [r.css || "", extCss].filter(Boolean).join("\n");
-        onCreate({ name, blocks, css: combinedCss });
+        const mergedHtml = normalizeHtml(`<style>${r.css || ""}</style>\n${r.html || ""}`);
+        onCreate({ name, html: mergedHtml, content: {} });
         toast.success("Página gerada!");
       } else {
-        const blocks = htmlToBlocks(html || "");
-        const extCss = extractCssFromHtml(html || "");
-        const combinedCss = [css, extCss].filter(Boolean).join("\n");
-        onCreate({ name, blocks, css: combinedCss });
+        const mergedHtml = normalizeHtml(`<style>${css || ""}</style>\n${html || ""}`);
+        onCreate({ name, html: mergedHtml, content: {} });
       }
       onClose();
     } catch (e: any) {
