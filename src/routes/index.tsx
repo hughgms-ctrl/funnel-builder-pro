@@ -140,6 +140,15 @@ function FunnelsDashboard({ onLogout, userEmail }: { onLogout: () => void; userE
             Configurações
           </Button>
           <Button
+            onClick={() => navigate({ to: "/pages" })}
+            variant="outline"
+            size="sm"
+            className="border-zinc-800 bg-zinc-900 hover:bg-zinc-800 text-zinc-300 flex items-center gap-1.5 h-8 text-xs font-semibold"
+          >
+            <LayoutGrid className="h-3.5 w-3.5" />
+            Páginas
+          </Button>
+          <Button
             onClick={handleCreate}
             size="sm"
             className="bg-gradient-to-r from-violet-600 to-pink-600 hover:from-violet-700 hover:to-pink-700 text-white shadow-lg shadow-violet-600/15 flex items-center gap-1.5 h-8 text-xs"
