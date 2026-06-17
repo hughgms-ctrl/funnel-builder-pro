@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Sparkles, FileCode, FilePlus, Loader2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { generatePageWithAI } from "@/lib/api/page-generator.client";
+import { generatePageWithAI } from "@/lib/api/page-generator-api";
 import { htmlToBlocks } from "@/lib/page-html";
 import type { Page } from "@/lib/page-types";
 import { toast } from "sonner";
