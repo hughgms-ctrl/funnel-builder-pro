@@ -13,6 +13,7 @@ import { Route as PagesRouteImport } from './routes/pages'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as BuilderRouteImport } from './routes/builder'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as PagesIndexRouteImport } from './routes/pages.index'
 import { Route as PagesPageIdRouteImport } from './routes/pages.$pageId'
 
 const PagesRoute = PagesRouteImport.update({
@@ -35,6 +36,11 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const PagesIndexRoute = PagesIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => PagesRoute,
+} as any)
 const PagesPageIdRoute = PagesPageIdRouteImport.update({
   id: '/$pageId',
   path: '/$pageId',
@@ -47,13 +53,14 @@ export interface FileRoutesByFullPath {
   '/login': typeof LoginRoute
   '/pages': typeof PagesRouteWithChildren
   '/pages/$pageId': typeof PagesPageIdRoute
+  '/pages/': typeof PagesIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/builder': typeof BuilderRoute
   '/login': typeof LoginRoute
-  '/pages': typeof PagesRouteWithChildren
   '/pages/$pageId': typeof PagesPageIdRoute
+  '/pages': typeof PagesIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -62,13 +69,27 @@ export interface FileRoutesById {
   '/login': typeof LoginRoute
   '/pages': typeof PagesRouteWithChildren
   '/pages/$pageId': typeof PagesPageIdRoute
+  '/pages/': typeof PagesIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/builder' | '/login' | '/pages' | '/pages/$pageId'
+  fullPaths:
+    | '/'
+    | '/builder'
+    | '/login'
+    | '/pages'
+    | '/pages/$pageId'
+    | '/pages/'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/builder' | '/login' | '/pages' | '/pages/$pageId'
-  id: '__root__' | '/' | '/builder' | '/login' | '/pages' | '/pages/$pageId'
+  to: '/' | '/builder' | '/login' | '/pages/$pageId' | '/pages'
+  id:
+    | '__root__'
+    | '/'
+    | '/builder'
+    | '/login'
+    | '/pages'
+    | '/pages/$pageId'
+    | '/pages/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -108,6 +129,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/pages/': {
+      id: '/pages/'
+      path: '/'
+      fullPath: '/pages/'
+      preLoaderRoute: typeof PagesIndexRouteImport
+      parentRoute: typeof PagesRoute
+    }
     '/pages/$pageId': {
       id: '/pages/$pageId'
       path: '/$pageId'
@@ -120,10 +148,12 @@ declare module '@tanstack/react-router' {
 
 interface PagesRouteChildren {
   PagesPageIdRoute: typeof PagesPageIdRoute
+  PagesIndexRoute: typeof PagesIndexRoute
 }
 
 const PagesRouteChildren: PagesRouteChildren = {
   PagesPageIdRoute: PagesPageIdRoute,
+  PagesIndexRoute: PagesIndexRoute,
 }
 
 const PagesRouteWithChildren = PagesRoute._addFileChildren(PagesRouteChildren)

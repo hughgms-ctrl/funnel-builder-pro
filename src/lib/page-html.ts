@@ -49,8 +49,8 @@ export function blocksToCss(blocks: Block[]): string {
 
 export function htmlToBlocks(html: string): Block[] {
   if (typeof window === "undefined") return [];
-  const doc = new DOMParser().parseFromString(`<div id="__root">${html}</div>`, "text/html");
-  const root = doc.getElementById("__root");
+  const doc = new DOMParser().parseFromString(html, "text/html");
+  const root = doc.body;
   if (!root) return [];
 
   const styleMap = new Map<string, Record<string, string>>();
@@ -190,4 +190,14 @@ export function moveBlock(blocks: Block[], id: string, dir: -1 | 1): Block[] {
     return arr;
   }
   return blocks.map((b) => b.children ? { ...b, children: moveBlock(b.children, id, dir) } : b);
+}
+
+export function extractCssFromHtml(html: string): string {
+  if (typeof window === "undefined") return "";
+  const doc = new DOMParser().parseFromString(html, "text/html");
+  let css = "";
+  doc.querySelectorAll("style").forEach((s) => {
+    css += (s.textContent || "") + "\n";
+  });
+  return css.trim();
 }

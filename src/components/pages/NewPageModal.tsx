@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Sparkles, FileCode, FilePlus, Loader2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { generatePageWithAI } from "@/lib/api/page-generator-api";
-import { htmlToBlocks } from "@/lib/page-html";
+import { htmlToBlocks, extractCssFromHtml } from "@/lib/page-html";
 import type { Page } from "@/lib/page-types";
 import { toast } from "sonner";
 
@@ -31,11 +31,15 @@ export function NewPageModal({ open, onClose, onCreate }: Props) {
         if (!prompt.trim()) { toast.error("Descreva a página"); return; }
         const r = await generatePageWithAI(prompt.trim());
         const blocks = htmlToBlocks(r.html || "");
-        onCreate({ name, blocks, css: r.css || "" });
+        const extCss = extractCssFromHtml(r.html || "");
+        const combinedCss = [r.css || "", extCss].filter(Boolean).join("\n");
+        onCreate({ name, blocks, css: combinedCss });
         toast.success("Página gerada!");
       } else {
         const blocks = htmlToBlocks(html || "");
-        onCreate({ name, blocks, css });
+        const extCss = extractCssFromHtml(html || "");
+        const combinedCss = [css, extCss].filter(Boolean).join("\n");
+        onCreate({ name, blocks, css: combinedCss });
       }
       onClose();
     } catch (e: any) {
