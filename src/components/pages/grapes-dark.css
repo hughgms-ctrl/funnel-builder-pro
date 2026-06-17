@@ -1,0 +1,232 @@
+/* GrapesJS dark theme override */
+
+/* Shell: dark bg */
+.gjs-editor {
+  background: #09090b;
+  color: #e4e4e7;
+  font-family: system-ui, -apple-system, sans-serif;
+  height: 100%;
+}
+
+/* Top toolbar */
+.gjs-top-sidebar,
+.gjs-pn-panels {
+  background: #09090b;
+  border-bottom: 1px solid #27272a;
+}
+
+/* Left panels */
+.gjs-pn-panel {
+  background: #0f0f12;
+  border-right: 1px solid #27272a;
+}
+
+/* Right style panel */
+.gjs-pn-views-container {
+  background: #0f0f12;
+  border-left: 1px solid #27272a;
+}
+
+/* Blocks */
+.gjs-blocks-cs {
+  background: #09090b;
+}
+
+.gjs-block {
+  background: #18181b;
+  border: 1px solid #27272a;
+  border-radius: 8px;
+  color: #a1a1aa;
+  transition: all 0.15s;
+}
+
+.gjs-block:hover {
+  background: #27272a;
+  border-color: #8b5cf6;
+  color: #e4e4e7;
+}
+
+.gjs-block-label {
+  font-size: 11px;
+  color: #a1a1aa;
+}
+
+.gjs-block-category .gjs-title {
+  background: #18181b;
+  color: #71717a;
+  border-bottom: 1px solid #27272a;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+/* Style Manager */
+.gjs-sm-sector {
+  border-bottom: 1px solid #27272a;
+}
+
+.gjs-sm-sector-title {
+  background: #18181b;
+  color: #a1a1aa;
+  border-bottom: 1px solid #27272a;
+}
+
+.gjs-sm-property {
+  padding: 4px 8px;
+}
+
+.gjs-sm-label {
+  color: #71717a;
+  font-size: 11px;
+}
+
+.gjs-sm-input-holder input,
+.gjs-sm-input-holder select,
+.gjs-field {
+  background: #27272a !important;
+  border: 1px solid #3f3f46 !important;
+  color: #e4e4e7 !important;
+  border-radius: 6px !important;
+}
+
+.gjs-field:focus,
+.gjs-sm-input-holder input:focus {
+  border-color: #8b5cf6 !important;
+  outline: none !important;
+}
+
+/* Layers panel */
+.gjs-layer {
+  background: #18181b;
+  border-bottom: 1px solid #27272a;
+  color: #a1a1aa;
+}
+
+.gjs-layer.gjs-selected {
+  background: #3b0764;
+  color: #e4e4e7;
+}
+
+.gjs-layer:hover {
+  background: #27272a;
+  color: #e4e4e7;
+}
+
+/* Traits */
+.gjs-trt-trait {
+  border-bottom: 1px solid #27272a;
+}
+
+.gjs-trt-trait__label {
+  color: #71717a;
+  font-size: 11px;
+}
+
+.gjs-trt-trait__field input,
+.gjs-trt-trait__field select {
+  background: #27272a !important;
+  border: 1px solid #3f3f46 !important;
+  color: #e4e4e7 !important;
+  border-radius: 6px !important;
+}
+
+/* Tab buttons */
+.gjs-pn-btn {
+  color: #52525b;
+  transition: all 0.15s;
+}
+
+.gjs-pn-btn:hover,
+.gjs-pn-btn.gjs-pn-active {
+  color: #8b5cf6;
+}
+
+/* Panel views */
+.gjs-pn-views {
+  border-bottom: 1px solid #27272a;
+  background: #0f0f12;
+}
+
+/* Device buttons */
+.gjs-cv-canvas {
+  background: #27272a;
+}
+
+/* Canvas frame */
+.gjs-frame-wrapper {
+  padding: 12px;
+}
+
+/* Selected component highlight */
+.gjs-selected {
+  outline: 2px solid #8b5cf6 !important;
+}
+
+/* Toolbar */
+.gjs-toolbar {
+  background: #18181b;
+  border: 1px solid #27272a;
+  border-radius: 6px;
+}
+
+.gjs-toolbar-item {
+  color: #a1a1aa;
+}
+
+.gjs-toolbar-item:hover {
+  color: #8b5cf6;
+}
+
+/* Color picker */
+.gjs-sm-colorp-c {
+  background: #27272a;
+  border: 1px solid #3f3f46;
+}
+
+/* Component placeholder tooltip */
+.gjs-badge {
+  background: #8b5cf6;
+  color: #fff;
+  font-size: 10px;
+  border-radius: 4px;
+}
+
+/* Resizer handles */
+.gjs-resizer-h {
+  background: #8b5cf6;
+}
+
+/* Scroll area */
+.gjs-pn-views-container::-webkit-scrollbar,
+.gjs-blocks-cs::-webkit-scrollbar {
+  width: 4px;
+}
+
+.gjs-pn-views-container::-webkit-scrollbar-thumb,
+.gjs-blocks-cs::-webkit-scrollbar-thumb {
+  background: #3f3f46;
+  border-radius: 4px;
+}
+
+/* Category open state */
+.gjs-block-category.gjs-open .gjs-title {
+  border-bottom: none;
+}
+
+/* GJS v0.22+ overrides */
+.gjs-one-bg {
+  background-color: #09090b !important;
+}
+
+.gjs-two-color {
+  color: #a1a1aa !important;
+}
+
+.gjs-three-bg {
+  background-color: #18181b !important;
+}
+
+.gjs-four-color,
+.gjs-four-color-h:hover {
+  color: #8b5cf6 !important;
+}

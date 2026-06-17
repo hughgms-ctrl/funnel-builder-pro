@@ -23,6 +23,7 @@ export interface Page {
   name: string;
   slug: string;
   html: string;
+  css: string;
   content: Record<string, string>;
   createdAt: number;
   updatedAt: number;

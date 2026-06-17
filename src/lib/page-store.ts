@@ -143,12 +143,16 @@ const emptyPage = (name = "Nova página", pages: Page[] = []): Page => ({
   id: uid(),
   name,
   slug: uniqueSlug(name, pages),
-  html: `
-    <header style="padding: 4rem 2rem; background: #fafafa; border-bottom: 1px solid #eee; text-align: center; font-family: sans-serif;">
-      <h1 style="font-size: 2.5rem; margin-bottom: 1rem; color: #111;">${name}</h1>
-      <p style="font-size: 1.1rem; color: #666; max-width: 600px; margin: 0 auto;">Página criada com sucesso. Use o painel lateral para adicionar novas seções prontas ou cole o seu próprio HTML completo no editor.</p>
-    </header>
-  `,
+  html: `<header style="padding: 4rem 2rem; text-align: center; font-family: system-ui, sans-serif; background: #f9fafb; border-bottom: 1px solid #e5e7eb;">
+  <h1 style="font-size: 2.5rem; font-weight: 700; color: #111; margin-bottom: 1rem;">${name}</h1>
+  <p style="font-size: 1.1rem; color: #6b7280; max-width: 600px; margin: 0 auto;">Clique em qualquer elemento para editá-lo. Use o painel lateral para adicionar novos blocos.</p>
+</header>
+<main style="padding: 4rem 2rem; max-width: 900px; margin: 0 auto; font-family: system-ui, sans-serif;">
+  <section style="text-align: center;">
+    <p style="color: #9ca3af; font-size: 1rem;">✨ Arraste blocos do painel esquerdo para começar a construir sua página.</p>
+  </section>
+</main>`,
+  css: "",
   content: {},
   createdAt: Date.now(),
   updatedAt: Date.now(),
